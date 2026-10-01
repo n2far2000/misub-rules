@@ -265,6 +265,12 @@ jsDelivr 对分支引用的缓存约 12 小时。需要立即生效可改用 `@<
 可以，但国内访问经常不通，这是选用 jsDelivr 的原因。MiSub 自身也会将
 `raw.githubusercontent.com` 自动重写为 jsDelivr 地址。
 
+**用 jsDelivr 下载 `Update-SubBoost-MiSub.bat` 返回 403？**
+
+这是 jsDelivr 的平台策略：所有可执行类扩展名（`.bat`/`.cmd`/`.exe`/`.ps1` 等）
+一律拒绝服务，与文件内容和仓库无关。该启动器本就设计为**本地使用**——请从
+仓库页面直接查看，或 `git clone` 后双击；不要通过 CDN 引用它。
+
 **Fork 后生成的链接不可用？**
 
 链接中的 `n2far2000/misub-rules` 为硬编码。需在运行时通过 `--gh-owner` / `--gh-repo`
@@ -276,6 +282,7 @@ jsDelivr 对分支引用的缓存约 12 小时。需要立即生效可改用 `@<
 .github/workflows/update.yml      每日自动重建工作流
 scripts/subboost2misub.mjs        生成器（零依赖）
 scripts/verify-with-misub.mjs     用 MiSub 官方渲染器验证产物
+scripts/check-links.mjs           全量链接体检：枚举两分支所有文件 × 三通道实测
 Update-SubBoost-MiSub.bat         Windows 本地模式启动器
 docs/internals.md                 源码级约束与设计依据（维护者参考）
 push.sh                           首次推送到 GitHub 的脚本
