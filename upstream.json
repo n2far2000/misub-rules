@@ -1,0 +1,10 @@
+{
+  "subboostCommit": "b7f4f87",
+  "structureFingerprint": "faea2cac7cc6f1fe0114822fe7a2875da23870eec44c5248bb5056026173a200",
+  "generatedAt": "2026-10-03T23:04:02.615Z",
+  "presets": [
+    "full",
+    "standard",
+    "minimal"
+  ]
+}
