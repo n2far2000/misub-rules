@@ -35,7 +35,7 @@ fi
 
 git add -A
 if ! git diff --cached --quiet; then
-  git commit -q -m "chore: init subboost-misub generator"
+  git commit -q -m "chore: init loyalsoldier-misub generator"
 fi
 
 if git remote get-url origin >/dev/null 2>&1; then

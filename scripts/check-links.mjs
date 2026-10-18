@@ -158,21 +158,27 @@ async function main() {
   console.log(`策略性排除: ${policyExcluded.length}（不计为故障）`);
   console.log(`真实失败: ${realFailures.length}`);
 
-  // 6. 关键产物内容校验（主链接本体）
-  const KEY = 'misub/SubBoost_Full_MiSub.ini';
+  // 6. 关键产物内容校验（主链接本体）+ 历史命名兼容性
+  const KEY = 'misub/Loyalsoldier_Full_MiSub.ini';
+  const LEGACY = 'misub/SubBoost_Full_MiSub.ini';
   console.log(`\n--- 关键产物内容校验: ${KEY} ---`);
   try {
-    const rawTxt = await (await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/dist/${KEY}`)).text();
-    const jdTxt = await (await fetch(`https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@dist/${KEY}`)).text();
+    const rawBase = `https://raw.githubusercontent.com/${OWNER}/${REPO}/dist`;
+    const cdnBase = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@dist`;
+    const rawTxt = await (await fetch(`${rawBase}/${KEY}`)).text();
+    const jdTxt = await (await fetch(`${cdnBase}/${KEY}`)).text();
+    const legacyTxt = await (await fetch(`${rawBase}/${LEGACY}`)).text();
     const lines = rawTxt.split(/\r?\n/);
     const count = (re) => lines.filter((l) => re.test(l)).length;
     console.log(`raw 字节: ${Buffer.byteLength(rawTxt, 'utf8')}  md5: ${md5(rawTxt)}`);
     console.log(`CDN 字节: ${Buffer.byteLength(jdTxt, 'utf8')}  md5: ${md5(jdTxt)}`);
     console.log(`双通道一致: ${md5(rawTxt) === md5(jdTxt) ? 'OK' : 'FAIL'}`);
+    console.log(`历史命名兼容(${LEGACY}) 一致: ${md5(rawTxt) === md5(legacyTxt) ? 'OK' : 'FAIL'}`);
     console.log(`ruleset= 规则数: ${count(/^ruleset=/)}`);
     console.log(`custom_proxy_group= 组数: ${count(/^custom_proxy_group=/)}`);
     console.log(`[]FINAL 收尾: ${lines.some((l) => /\[\]FINAL/.test(l)) ? '存在 OK' : '缺失 FAIL'}`);
-    console.log(`空成员组: ${count(/^custom_proxy_group=[^`]*``$|^custom_proxy_group=.*``\s*$/)}`);
+    console.log(`指向 Loyalsoldier 规则集: ${lines.filter((l) => /rules\/clash\//.test(l)).length} 条`);
+    console.log(`残留 GEOSITE 内联: ${count(/\[\]GEOSITE/)}（应为 0）`);
   } catch (e) {
     console.log(`校验失败: ${e.message}`);
   }
@@ -181,14 +187,23 @@ async function main() {
   console.log(`\n--- README 文档链接逐条验证 ---`);
   const DIST = `gh/${OWNER}/${REPO}@dist`;
   const documented = [
-    ['主链接·完整版', `https://cdn.jsdelivr.net/${DIST}/misub/SubBoost_Full_MiSub.ini`],
-    ['主链接·标准版', `https://cdn.jsdelivr.net/${DIST}/misub/SubBoost_Standard_MiSub.ini`],
-    ['主链接·精简版', `https://cdn.jsdelivr.net/${DIST}/misub/SubBoost_Minimal_MiSub.ini`],
-    ['远程版·Clash', `https://cdn.jsdelivr.net/${DIST}/misub-remote/SubBoost_Full_MiSub_clash.ini`],
-    ['远程版·sing-box', `https://cdn.jsdelivr.net/${DIST}/misub-remote/SubBoost_Full_MiSub_singbox.ini`],
-    ['镜像·fastly', `https://fastly.jsdelivr.net/${DIST}/misub/SubBoost_Full_MiSub.ini`],
-    ['镜像·testingcf', `https://testingcf.jsdelivr.net/${DIST}/misub/SubBoost_Full_MiSub.ini`],
-    ['镜像·gcore', `https://gcore.jsdelivr.net/${DIST}/misub/SubBoost_Full_MiSub.ini`],
+    ['主链接·完整版', `https://cdn.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
+    ['主链接·标准版', `https://cdn.jsdelivr.net/${DIST}/misub/Loyalsoldier_Standard_MiSub.ini`],
+    ['主链接·极简版', `https://cdn.jsdelivr.net/${DIST}/misub/Loyalsoldier_Minimal_MiSub.ini`],
+    ['远程版·Clash', `https://cdn.jsdelivr.net/${DIST}/misub-remote/Loyalsoldier_Full_MiSub_clash.ini`],
+    ['远程版·sing-box', `https://cdn.jsdelivr.net/${DIST}/misub-remote/Loyalsoldier_Full_MiSub_singbox.ini`],
+    ['历史·完整版', `https://cdn.jsdelivr.net/${DIST}/misub/SubBoost_Full_MiSub.ini`],
+    ['历史·标准版', `https://cdn.jsdelivr.net/${DIST}/misub/SubBoost_Standard_MiSub.ini`],
+    ['历史·极简版', `https://cdn.jsdelivr.net/${DIST}/misub/SubBoost_Minimal_MiSub.ini`],
+    ['历史·Clash', `https://cdn.jsdelivr.net/${DIST}/misub-remote/SubBoost_Full_MiSub_clash.ini`],
+    ['历史·sing-box', `https://cdn.jsdelivr.net/${DIST}/misub-remote/SubBoost_Full_MiSub_singbox.ini`],
+    ['规则集·reject', `https://cdn.jsdelivr.net/${DIST}/rules/clash/reject.yaml`],
+    ['规则集·direct', `https://cdn.jsdelivr.net/${DIST}/rules/clash/direct.yaml`],
+    ['规则集·cncidr', `https://cdn.jsdelivr.net/${DIST}/rules/clash/cncidr.yaml`],
+    ['规则集·singbox reject', `https://cdn.jsdelivr.net/${DIST}/rules/singbox/reject.json`],
+    ['镜像·fastly', `https://fastly.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
+    ['镜像·testingcf', `https://testingcf.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
+    ['镜像·gcore', `https://gcore.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
     ['元信息·manifest', `https://cdn.jsdelivr.net/${DIST}/manifest.json`],
     ['元信息·upstream', `https://cdn.jsdelivr.net/${DIST}/upstream.json`],
     ['徽章 badge', `https://github.com/${OWNER}/${REPO}/actions/workflows/update.yml/badge.svg`],

@@ -6,14 +6,16 @@
  *
  * 用 MiSub 官方渲染管线（而非本项目内的复刻实现）验证生成的 ini。
  *
- * subboost2misub.mjs 的 --verify 是「复刻 MiSub 解析逻辑做模拟」，用于快速回归；
+ * loyalsoldier2misub.mjs 的 --verify 是「复刻 MiSub 解析逻辑做模拟」，用于快速回归；
  * 本脚本直接 import MiSub 源码里的模板管线，用于核对复刻实现是否与上游一致。
  * 两者互补：前者零依赖、可离线；后者是权威口径，需要 MiSub 源码。
  *
  * 用法：
  *   git clone --depth 1 https://github.com/imzyb/MiSub /path/to/MiSub
  *   cd /path/to/MiSub && npm install
- *   node <repo>/scripts/verify-with-misub.mjs --misub /path/to/MiSub dist/misub/SubBoost_Full_MiSub.ini
+ *   node <repo>/scripts/verify-with-misub.mjs --misub /path/to/MiSub \
+ *     dist/misub/Loyalsoldier_Full_MiSub.ini \
+ *     dist/misub-remote/Loyalsoldier_Full_MiSub_singbox.ini
  *
  * 校验内容：
  *   · 产出合法 YAML / JSON，且策略组、规则数量非零
@@ -55,8 +57,8 @@ if (has("help") || !MISUB_ARG || positional.length === 0) {
 
 示例:
   node verify-with-misub.mjs --misub ../MiSub \\
-    dist/misub/SubBoost_Full_MiSub.ini \\
-    dist/misub-remote/SubBoost_Full_MiSub_clash.ini`);
+    dist/misub/Loyalsoldier_Full_MiSub.ini \\
+    dist/misub-remote/Loyalsoldier_Full_MiSub_singbox.ini`);
   process.exit(2);
 }
 
