@@ -66,6 +66,9 @@ jobs:
 
       - name: Generate dist
         id: generate
+        env:
+          # 用于解析上游 commit，避免匿名调用撞上 60 次/小时的共享限额
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           node scripts/loyalsoldier2misub.mjs \

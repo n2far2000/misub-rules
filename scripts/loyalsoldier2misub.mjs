@@ -270,11 +270,11 @@ const DOMAIN_RE = /^[a-z0-9]([a-z0-9_-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9_-]*[a-z0-9
 const CIDR4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/;
 const CIDR6_RE = /^[0-9a-f:]+\/\d{1,3}$/i;
 
-async function fetchText(url, ms = 60000) {
+async function fetchText(url, ms = 60000, headers = null) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), ms);
   try {
-    const res = await fetch(url, { signal: ctl.signal, redirect: "follow" });
+    const res = await fetch(url, { signal: ctl.signal, redirect: "follow", headers: headers || {} });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.text();
   } finally {
@@ -282,8 +282,51 @@ async function fetchText(url, ms = 60000) {
   }
 }
 
-const MIRRORS = ["cdn.jsdelivr.net/gh", "fastly.jsdelivr.net/gh", "testingcf.jsdelivr.net/gh", "gcore.jsdelivr.net/gh"];
+/**
+ * 解析上游当前 commit。三条路依次尝试：
+ *   1. GitHub REST API（带 token 时不进 60 次/小时的匿名池）
+ *   2. commits atom feed（不限额，无鉴权，仅取最新一条的 SHA）
+ *   3. 放弃，记为 unknown
+ * 之所以不只靠第 1 条：GitHub 托管 runner 出口 IP 与他人共享，匿名调用
+ * 经常直接 403（2026-10-19 的 #21 就是这样退化成 unknown 的）。
+ */
+async function resolveUpstreamCommit() {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || "";
+  const apiHeaders = token
+    ? { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }
+    : { Accept: "application/vnd.github+json" };
 
+  try {
+    const branch = JSON.parse(
+      await fetchText(`https://api.github.com/repos/${UPSTREAM_REPO}/branches/${UPSTREAM_REF}`, 20000, apiHeaders)
+    );
+    const sha = branch?.commit?.sha;
+    if (sha) {
+      log(`上游 commit: ${sha.slice(0, 9)}${token ? "（API，已鉴权）" : "（API，匿名）"}`);
+      return sha;
+    }
+    warn("API 未返回 commit.sha，改用 atom feed");
+  } catch (e) {
+    warn(`API 取 commit 失败（${e.message}），改用 atom feed`);
+  }
+
+  try {
+    const atom = await fetchText(`https://github.com/${UPSTREAM_REPO}/commits/${UPSTREAM_REF}.atom`, 20000);
+    const sha = (atom.match(/Grit::Commit\/([0-9a-f]{40})/i) || [])[1];
+    if (sha) {
+      log(`上游 commit: ${sha.slice(0, 9)}（atom feed）`);
+      return sha;
+    }
+    warn("atom feed 中未找到 commit SHA");
+  } catch (e) {
+    warn(`atom feed 取 commit 失败（${e.message}）`);
+  }
+
+  warn("无法获取上游 commit，退化为 unknown");
+  return "unknown";
+}
+
+const MIRRORS = ["cdn.jsdelivr.net/gh", "fastly.jsdelivr.net/gh", "testingcf.jsdelivr.net/gh", "gcore.jsdelivr.net/gh"];
 function upstreamUrls(file) {
   return [
     ...MIRRORS.map((m) => `https://${m}/${UPSTREAM_REPO}@${UPSTREAM_REF}/${file}`),
@@ -862,14 +905,7 @@ async function main() {
     upstreamCommit = ASSUME_COMMIT;
     log(`上游 commit: ${ASSUME_COMMIT}（由 --upstream-commit 指定）`);
   } else if (!OFFLINE) {
-    try {
-      const branch = JSON.parse(
-        await fetchText(`https://api.github.com/repos/${UPSTREAM_REPO}/branches/${UPSTREAM_REF}`, 20000)
-      );
-      upstreamCommit = branch?.commit?.sha || "unknown";
-    } catch {
-      warn("无法获取上游 commit，退化为 unknown");
-    }
+    upstreamCommit = await resolveUpstreamCommit();
   }
 
   log("");
