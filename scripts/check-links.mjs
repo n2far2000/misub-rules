@@ -116,21 +116,29 @@ async function main() {
 
   console.log(`开始实测 ${tasks.length} 个文件 × 3 通道 = ${tasks.length * 3} 次请求...\n`);
   const results = await mapLimit(tasks, CONCURRENCY, async (t) => {
-    const [j, r, g] = await Promise.all([head(t.jsdelivr), head(t.raw), head(t.gh)]);
+    // gh 仅为参考项，只试 1 次，避免 93 个文件 × 3 次 × 20 秒拖长总耗时
+    const [j, r, g] = await Promise.all([head(t.jsdelivr), head(t.raw), head(t.gh, 1)]);
     return { ...t, j, r, g };
   });
 
   // 5. 统计
+  //
+  // 判定口径：产物的可用性由 **jsDelivr 与 raw 两个实际分发通道** 决定。
+  // gh（github.com/blob 页面）只作参考 —— 它是 240 KB 的 HTML 页面，
+  // 国内直连常需 17–20 秒，几乎必然撞上 20 秒超时，把它当门禁会稳定误报
+  // （2026-10-19 实测：58 个「失败」全部是该通道超时，jsDelivr 与 raw 均 200）。
   let ok = 0, bad = 0;
   const failures = [];
   for (const x of results) {
-    const pass = x.j.status === 200 && x.r.status === 200 && x.g.status === 200;
+    const pass = x.j.status === 200 && x.r.status === 200;
     if (pass) ok++;
     else {
       bad++;
       failures.push(x);
     }
   }
+
+  const ghDown = results.filter((x) => x.g.status !== 200).length;
 
   // 已知 jsDelivr 平台策略：可执行类扩展名一律 403（与内容无关，与仓库无关）
   const EXEC_EXT = /\.(bat|cmd|exe|msi|dll|ps1|vbs|jar|apk)$/i;
@@ -154,9 +162,10 @@ async function main() {
 
   console.log(`\n--- 汇总 ---`);
   console.log(`文件总数: ${tasks.length}`);
-  console.log(`三通道全绿: ${ok}`);
+  console.log(`双通道全绿（jsDelivr + raw）: ${ok}`);
   console.log(`策略性排除: ${policyExcluded.length}（不计为故障）`);
   console.log(`真实失败: ${realFailures.length}`);
+  console.log(`参考项 gh 页面不可达: ${ghDown}（不计入门禁，见上方口径说明）`);
 
   // 6. 关键产物内容校验（主链接本体）+ 历史命名兼容性
   const KEY = 'misub/Loyalsoldier_Full_MiSub.ini';
@@ -265,17 +274,29 @@ async function main() {
     ['仓库首页', `https://github.com/${OWNER}/${REPO}`],
   ];
   let docBad = 0;
+  let docRefDown = 0;
   const docResults = await mapLimit(documented, 4, async ([name, url]) => {
     const res = await head(url, 3);
     return { name, url, ...res };
   });
   for (const d of docResults) {
     const pass = d.status === 200;
+    // github.com 的 HTML 页面（仓库首页 / Actions / 徽章）与产物分发无关，
+    // 国内直连常需 17–20 秒，超时属网络环境而非链接失效 → 记为参考项。
+    const isGhPage = /^https:\/\/github\.com\//.test(d.url);
+    if (!pass && isGhPage) {
+      docRefDown++;
+      console.log(`REF  ${String(d.status).padEnd(3)} ${d.name}（github.com 页面，不计入门禁）`);
+      continue;
+    }
     if (!pass) docBad++;
     console.log(`${pass ? 'OK  ' : 'FAIL'} ${String(d.status).padEnd(3)} ${d.name}`);
     if (!pass) console.log(`      ${d.url}`);
   }
-  console.log(`文档链接: ${documented.length - docBad}/${documented.length} 可用`);
+  const docScored = documented.length - docRefDown;
+  console.log(
+    `文档链接: ${docScored - docBad}/${docScored} 可用（另有 ${docRefDown} 条 github.com 页面属参考项）`
+  );
 
   // 7. 旧 SHA 复活探测（历史消除验收）
   console.log(`\n--- 历史残留探测（旧 SHA 应全部失效）---`);
@@ -290,10 +311,13 @@ async function main() {
   for (const sha of OLD_SHAS) {
     const [a, r, j] = await Promise.all([
       head(`https://api.github.com/repos/${OWNER}/${REPO}/commits/${sha}`, 1),
-      head(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${sha}/README.md`, 1),
-      head(`https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${sha}/README.md`, 1),
+      head(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${sha}/README.md`, 2),
+      head(`https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${sha}/README.md`, 2),
     ]);
-    const dead = r.status === 404 && j.status === 404;
+    // 只有「真的能拿到内容」才算复活。status 0 是请求异常（超时 / 连接重置），
+    // 此时用户同样取不到文件，按失效处理；否则每次网络抖动都会误报 ALIVE。
+    const revivedHit = r.status === 200 || j.status === 200;
+    const dead = !revivedHit;
     if (!dead) revived++;
     console.log(`${dead ? 'DEAD  ' : 'ALIVE!'} ${sha.slice(0, 10)}  API=${a.status} raw=${r.status} jsDelivr=${j.status}`);
   }
