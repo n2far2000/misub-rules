@@ -123,14 +123,9 @@ jsDelivr 对 `@dist` 这种**分支引用**的「分支名 → commit」解析�
 | 标准版 | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-raw/Loyalsoldier_Standard_MiSub.ini` |
 | 极简版 | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-raw/Loyalsoldier_Minimal_MiSub.ini` |
 
-> **怎么选（先读这段）**
->
-> - 客户端加载 `rule-provider` 时**默认走 DIRECT**，不会跟随你的代理设置。
->   所以 raw 通道能不能用，取决于**你本机直连 raw 是否稳定**，而不是「我有节点」。
-> - 实测（2026-10-19，江西电信直连）：raw 抓 3 KB 的 ini 多数成功，但抓 1.6 MB gzip 的
->   `agg-ad.yaml` 会间歇超时。判断方法：能连续三次 `curl -I` 到 raw 成功再选这个通道。
-> - 本地 raw 不稳时的替代：用上面的 jsDelivr 链接，接受规则集最长 12 小时滞后
->   （实测常见滞后 1 小时左右）；或把 `rule-provider` 的 `proxy` 指向代理组后仍用 raw 版。
+> **怎么选**：raw 域名在部分国内网络会被干扰或限速（聚合版冷启动需拉约 2.3 MB gzip）。
+> 能正常访问 raw 就优先用它——它是唯一能做到「规则集不过期」的通道；
+> 若 raw 不稳定，退回上面的 jsDelivr 链接，接受最长 12 小时的规则集滞后。
 
 ### 历史链接（兼容保留）
 
