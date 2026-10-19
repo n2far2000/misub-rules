@@ -214,6 +214,28 @@ rule —— 不同匹配组之间是 **AND**，会变成永不命中的条件。
 `--verify` 会为每张表取首条条目，模拟「先命中哪张表」，一旦顺序被改乱立刻失败。
 该检查用 `suffixSet` / `exactSet` 做「逐级剥离子域」的判定，与 mihomo 的 trie 语义一致。
 
+### 5.1 聚合（`agg-*`）的额外约束
+
+把多张表合并成一个文件时，有三条不能破的线：
+
+1. **一个规则集文件只能绑定一个策略组。**
+   `rule-providers` 的 classical payload 每行只是 `TYPE,VALUE`，**不带 policy**，
+   policy 由引用它的 `RULE-SET,<name>,<policy>` 决定。同一文件被多个策略组引用时，
+   全部流量会被第一条规则吃掉。所以「文件数 ≥ 策略组数」，语义不变的实测下界是 4。
+
+2. **sing-box 侧必须把域名和 IP 拆成多条 rule。**
+   规则集 v3 的 `rules` 数组是 **OR**（任一匹配即属于该集合），
+   而单个 rule 对象里的多字段是 **AND**。混合表若写成
+   `{"domain_suffix":[...],"ip_cidr":[...]}`，等于要求「域名后缀命中 且 IP 同时命中」，
+   永远不成立且不报错 —— 静默失效。
+
+3. **跨组不能去重，组内必须去重。**
+   跨表重叠是有语义的：`proxy ∩ direct = 158` 条，靠「proxy 表排在 direct 之前」才走代理，
+   合并到不同组时绝不能删任何一边。而同一组内重复的条目（如 `direct` 表自身的 4 条重复）
+   可以且应该去掉，去重时必须**保留首次出现顺序**。
+
+`buildAggregates()` 对每张聚合表做三项自检：内部无重复、各源条目全包含、条目数只能变小。
+
 ---
 
 ## 6. 验证方法
@@ -224,6 +246,9 @@ node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 
 # 权威口径：MiSub 官方渲染管线（需 clone MiSub 并 npm install）
 node scripts/verify-with-misub.mjs --misub /path/to/MiSub <ini...>
+
+# 产物一致性：两次构建逐文件比对（仅归一化时间戳）
+node scripts/check-consistency.mjs --left dist --right /tmp/dist2
 
 # 发布后链接体检
 node scripts/check-links.mjs --owner <owner> --repo misub-rules
@@ -250,4 +275,5 @@ node scripts/check-links.mjs --owner <owner> --repo misub-rules
 - [ ] 规则指向的策略组都存在
 - [ ] `[]FINAL` 唯一且位于末尾
 - [ ] 新增 / 改名产物文件时，**同步产出 `SubBoost_*` 兼容副本**，否则旧订阅链接会 404
-- [ ] 跑完第 6 节的三条命令，并用真实客户端导入一次
+- [ ] 聚合表：一个文件只对一个策略组；sing-box 侧域名与 IP 拆成两条 rule；跨组不去重
+- [ ] 跑完第 6 节的四条命令，并用真实客户端导入一次

@@ -16,7 +16,7 @@
 - [这是什么](#这是什么)
 - [快速开始](#快速开始)
 - [可用链接](#可用链接)
-- [三档预设](#三档预设)
+- [四档预设](#四档预设)
 - [为什么还要自己托管规则集](#为什么还要自己托管规则集)
 - [与官方推荐配置的差异](#与官方推荐配置的差异)
 - [本地模式](#本地模式)
@@ -95,15 +95,16 @@ node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 | 预设 | 链接 |
 |---|---|
 | **完整版**（Clash / Mihomo） | `https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/misub/Loyalsoldier_Full_MiSub.ini` |
+| **聚合版**（弱网 / 老设备推荐） | `https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/misub/Loyalsoldier_Agg4_MiSub.ini` |
 | 标准版（Clash / Mihomo） | `https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/misub/Loyalsoldier_Standard_MiSub.ini` |
 | 极简版（Clash / Mihomo） | `https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/misub/Loyalsoldier_Minimal_MiSub.ini` |
 
 ### 按内核区分
 
-| 内核 | 完整版链接 |
-|---|---|
-| Clash / Mihomo | `...@dist/misub-remote/Loyalsoldier_Full_MiSub_clash.ini` |
-| sing-box | `...@dist/misub-remote/Loyalsoldier_Full_MiSub_singbox.ini` |
+| 内核 | 完整版链接 | 聚合版链接 |
+|---|---|---|
+| Clash / Mihomo | `...@dist/misub-remote/Loyalsoldier_Full_MiSub_clash.ini` | `...@dist/misub-remote/Loyalsoldier_Agg4_MiSub_clash.ini` |
+| sing-box | `...@dist/misub-remote/Loyalsoldier_Full_MiSub_singbox.ini` | `...@dist/misub-remote/Loyalsoldier_Agg4_MiSub_singbox.ini` |
 
 ### 历史链接（兼容保留）
 
@@ -133,13 +134,17 @@ node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 
 > jsDelivr 对**分支引用**的缓存约 12 小时，产物更新后最长半天全网生效。
 
-## 三档预设
+## 四档预设
 
-| 预设 | 规则表 | 条目 | 说明 |
-|---|---|---|---|
-| **Full** | 10 | 342,867 | 官方推荐白名单的完整实现 |
-| Standard | 6 | 342,525 | 去掉 iCloud / Apple / Google / Telegram 细分 |
-| Minimal | 4 | 332,498 | 去掉全部 IP 表，国内直连靠 `GEOIP,CN` 兜底 |
+| 预设 | 规则集数 | 策略组 | 条目 | 说明 |
+|---|---|---|---|---|
+| **Full** | 10 | 10 | 343,231 | 官方推荐白名单的完整实现，细分开关最全 |
+| **Agg4** | **4** | 6 | 343,227 | 10 张表按策略组合并成 4 个文件，弱网 / 老设备推荐 |
+| Standard | 6 | 6 | 342,889 | 去掉 iCloud / Apple / Google / Telegram 细分 |
+| Minimal | 4 | 6 | 332,862 | 去掉全部 IP 表，国内直连靠 `GEOIP,CN` 兜底 |
+
+> 条目数随上游每日变动，准确值以 [`manifest.json`](https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/manifest.json)
+> 的 `presetsSummary` 为准。
 
 **Full 的规则顺序**（严格复刻官方推荐）：
 
@@ -162,6 +167,39 @@ FINAL                        → 🐟 漏网之鱼      PROXY（白名单语义�
 
 **注意**：`google` 排在 `direct` 之前。两个表都收录同一个域名时，**排在前面的一方获胜**。
 这是官方推荐顺序，不要随意调换。
+
+### Agg4 聚合版做了什么
+
+把 10 张表按「目标策略组」合并成 4 个文件，只减少启动时的并发请求数，**规则条目一条不少**：
+
+| 聚合文件 | 由哪些表合并 | 条目 | 目标策略组 |
+|---|---|---|---|
+| `agg-private.yaml` | private + lancidr | 150 | 🏠 私有网络 |
+| `agg-ad.yaml` | reject | 194,969 | 🛑 广告拦截 |
+| `agg-proxy.yaml` | proxy + telegramcidr | 27,257 | 🚀 节点选择 |
+| `agg-direct.yaml` | direct + apple + icloud + google + cncidr | 120,851 | 🎯 全球直连 |
+
+规则顺序与原版一致（`agg-direct` 内部比原表少 4 条，是 direct 表自身的重复项）：
+
+```
+DOMAIN,clash.razord.top       → 🎯 全球直连
+DOMAIN,yacd.haishan.me        → 🎯 全球直连
+private + lancidr             → 🏠 私有网络
+reject                        → 🛑 广告拦截
+proxy + telegramcidr          → 🚀 节点选择
+direct + apple + icloud + google + cncidr → 🎯 全球直连
+GEOIP,CN                      → 🎯 全球直连
+FINAL                         → 🐟 漏网之鱼
+```
+
+- **收益**：客户端首次拉取从 10 个并发请求降到 4 个（少 6 次 TLS 握手，弱网下失败面更小）。
+- **代价**：失去 iCloud / 苹果 / Google / Telegram 四个独立开关 —— 它们并入直连 / 代理组。
+  这四组**默认值本来就相同**，所以不动这些开关的话分流行为完全一致。
+- **不会省的**：下载字节数（gzip 前后都是 2.2 MB），因为本来就是同一批规则，只是重新装箱。
+
+> 为什么不合成 1 个文件：一个 rule-provider 只能绑定一个策略组（payload 不带 policy），
+> 硬合并会让第一条规则吃掉全部流量。语义不变的前提下，**4 个已是最少**。
+> 设计与实测数据见 [`docs/plan-aggregation-and-distribution.md`](docs/plan-aggregation-and-distribution.md)。
 
 ## 为什么还要自己托管规则集
 
@@ -221,38 +259,43 @@ Update-MiSub-Rules.bat --dist dist             :: 生成完整产物目录
 ### 命令行
 
 ```bash
-# 生成三档预设（ini）
+# 生成全部预设（ini）
 node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 
-# 生成完整产物（含远程规则集）
+# 生成完整产物（含远程规则集与聚合表）
 node scripts/loyalsoldier2misub.mjs --dist dist --all-presets \
   --gh-owner <owner> --gh-repo misub-rules --gh-ref dist --verify
 
 # 离线重跑（用 .work/loyalsoldier/ 下的缓存）
 node scripts/loyalsoldier2misub.mjs --dist dist --all-presets --offline
+
+# 可复现构建：固定上游 commit，用于一致性回归
+node scripts/loyalsoldier2misub.mjs --dist /tmp/c1 --all-presets --offline \
+  --upstream-commit <sha> --verify
 ```
 
 ### 参数
 
 | 参数 | 说明 |
 |---|---|
-| `--preset Full\|Standard\|Minimal` | 单预设模式，默认全生成 |
-| `--all-presets` | 三档全部生成 |
+| `--preset Full\|Standard\|Minimal\|Agg4` | 单预设模式，默认全生成 |
+| `--all-presets` | 全部预设生成 |
 | `--out <file>` | 只写出一份 ini |
 | `--out-dir <dir>` | ini 输出目录，默认 `output/` |
-| `--dist <dir>` | 完整产物模式（规则集 + ini + manifest） |
+| `--dist <dir>` | 完整产物模式（规则集 + 聚合表 + ini + manifest） |
 | `--gh-owner` / `--gh-repo` / `--gh-ref` | 拼接规则集的基础 URL |
 | `--cdn <base>` | 覆盖 CDN 前缀，默认 `https://cdn.jsdelivr.net/gh` |
 | `--verify` | 复刻 MiSub 解析 + 路由顺序模拟（`--dist` 模式下默认开启） |
 | `--offline` | 只用本地缓存 |
 | `--cache-dir <dir>` | 规则缓存目录，默认 `.work/loyalsoldier` |
+| `--upstream-commit <sha>` | 显式固定上游 commit（`--offline` 下默认写 unknown，会破坏两次构建的一致性比对） |
 
-首次联网拉取约 9 MB 规则数据，之后走缓存。完整构建约 16 秒。
+首次联网拉取约 9 MB 规则数据，之后走缓存。完整构建约 17 秒。
 
 ## 验证
 
 ```bash
-# 1) 内置回归：结构校验 + 路由顺序模拟，零依赖、可离线
+# 1) 内置回归：结构校验 + 路由顺序模拟 + 聚合表自检，零依赖、可离线
 node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 
 # 2) 权威口径：直接加载 MiSub 官方渲染管线
@@ -260,31 +303,49 @@ git clone --depth 1 https://github.com/imzyb/MiSub /tmp/MiSub
 cd /tmp/MiSub && npm install
 node <repo>/scripts/verify-with-misub.mjs --misub /tmp/MiSub \
   <repo>/output/misub-remote/Loyalsoldier_Full_MiSub_clash.ini \
-  <repo>/output/misub-remote/Loyalsoldier_Full_MiSub_singbox.ini
+  <repo>/output/misub-remote/Loyalsoldier_Agg4_MiSub_singbox.ini
 
-# 3) 发布后全量链接体检（枚举 dist 全部文件 × 三通道）
+# 3) 产物一致性：两次构建必须逐字节相同（仅归一化生成时间戳）
+node scripts/check-consistency.mjs --left dist --right /tmp/dist2
+
+# 4) 发布后全量链接体检（枚举 dist 全部文件 × 三通道 + 聚合版结构校验）
 node scripts/check-links.mjs --owner <owner> --repo misub-rules
 ```
 
 内置 `--verify` 会检查：策略组是否自洽、是否有悬空引用、是否有空组、
-`[]FINAL` 是否唯一且位于末位、规则集 URL 形态，以及**每张表的首条条目能否命中自己的策略组**
-（用来防住顺序错乱）。任何一项不过就退出码 1，CI 会拦住不发布。
+`[]FINAL` 是否唯一且位于末位、规则集 URL 形态、**远程规则集数量是否与预设声明一致**，
+以及**每张表首/中/末三条探针能否命中自己的策略组**（用来防住顺序错乱）。
+聚合表额外做三项自检：内部无重复、各源条目全包含、条目数只能变小。
+任何一项不过就退出码 1，CI 会拦住不发布。
+
+`check-consistency.mjs` 支持两种模式：
+
+| 模式 | 判据 | 用途 |
+|---|---|---|
+| `full`（默认） | 逐文件相同，仅忽略生成时间戳 | 同一输入的两次构建必须完全一致 |
+| `structure` | 只比 provider 数 / 策略组数 / 聚合来源 / 文件清单 | 上游数据已更新、但要确认改写逻辑没跑偏 |
 
 MiSub 升级版本后应重跑第 2 项，因为它才是权威口径。
 
 ## 工作原理
 
 ```
-GitHub Actions（每日北京时间 04:17，另有手动触发）
+GitHub Actions（每日北京时间 04:17，另有手动触发、以及 scripts/ 变更时自动重建）
   ├─ 拉取 Loyalsoldier 规则集   10 张表，约 9 MB
   ├─ 归一化                     '+.x' → 后缀匹配；裸 'x' → 精确匹配
   ├─ 生成规则集                 Clash classical YAML + sing-box source JSON
-  ├─ 生成 ini 模板              3 档预设 × 2 内核 + 历史命名兼容副本
-  ├─ 端到端校验                 解析模拟 + 路由顺序抽样，失败则不发布
+  ├─ 按策略组聚合               10 张表 → 4 张（agg-private / agg-ad / agg-proxy / agg-direct）
+  ├─ 生成 ini 模板              4 档预设 × 2 内核 + 历史命名兼容副本
+  ├─ 端到端校验                 解析模拟 + 路由顺序抽样 + 聚合表自检
+  ├─ 一致性校验                 离线重建一次，逐文件比对（仅忽略时间戳）
   └─ 发布                      dist 分支（孤立提交 + 强制推送）
                                    ↓
                              jsDelivr CDN → MiSub → 客户端
 ```
+
+**本地与 CI 一致性的保证方式**：两边调用同一个 `scripts/loyalsoldier2misub.mjs`，
+CI 在发布前会用同一份缓存离线重建第二份产物，再用 `check-consistency.mjs` 逐文件比对。
+任何人本地执行 README 里的两条命令，得到的结果必须与 CI 完全一致。
 
 `dist` 分支每次以**孤立提交 + 强制推送**重建，仓库体积恒等于单次产物大小。
 每日推送本身也构成仓库活动，可避免公开仓库因连续 60 天无活动被自动禁用定时任务。
@@ -304,8 +365,19 @@ GitHub Actions（每日北京时间 04:17，另有手动触发）
 **加载慢 / 内存高？**
 
 19 万条 `DOMAIN-SUFFIX` 在 mihomo 里会构建域名 trie，桌面端无感，低配手机可能吃力。
-这种情况下建议改用 `Minimal`，或者直接换成 `[]GEOSITE` 写法（体积小得多，
-但数据来源就不是 Loyalsoldier 了）。
+两个降级方向：
+
+- **改用 `Agg4`**（推荐）：规则内容与 `Full` 完全一致，但客户端启动时的并发请求从 10 个降到 4 个。
+  只解决「首次拉取慢 / 弱网反复超时」，不减少条目本身。
+- **改用 `Minimal`**：去掉 IP 表，条目降到 33.3 万→ 仍然很大；若要显著减少条目，
+  只能换成 `[]GEOSITE` 写法（体积小得多，但数据来源就不是 Loyalsoldier 了）。
+
+**聚合版（Agg4）和完整版有什么区别？**
+
+规则内容相同（343,231 → 343,227 条，差的 4 条是 direct 表自身的重复项），
+只是把 10 个规则集文件按策略组合并成 4 个。区别只有两点：
+① 客户端并发请求少 6 个；② 失去 iCloud / 苹果 / Google / Telegram 四个独立开关
+（它们的默认值本来就与目标大组相同，不动开关则分流完全一致）。
 
 **更新后需要重新导入模板吗？**
 
@@ -329,12 +401,14 @@ jsDelivr 对所有可执行类扩展名（`.bat`/`.cmd`/`.exe`/`.ps1` 等）一�
 ## 目录结构
 
 ```
-.github/workflows/update.yml       每日自动重建工作流
-scripts/loyalsoldier2misub.mjs     生成器（零依赖）
+.github/workflows/update.yml       每日自动重建工作流 + 一致性门禁
+scripts/loyalsoldier2misub.mjs     生成器（零依赖）：归一化 → 规则集 → 聚合 → ini
 scripts/verify-with-misub.mjs      用 MiSub 官方渲染器验证产物
+scripts/check-consistency.mjs      产物一致性：两次构建逐文件比对（仅忽略时间戳）
 scripts/check-links.mjs            全量链接体检：枚举两分支所有文件 × 三通道实测
 Update-MiSub-Rules.bat             Windows 本地模式启动器
 docs/internals.md                  源码级约束与设计依据（维护者参考）
+docs/plan-aggregation-and-distribution.md  聚合方案与分发端选型（设计稿）
 push.sh                            首次推送到 GitHub 的脚本
 LICENSE                            AGPL-3.0 全文
 NOTICE                             上游归属与许可说明

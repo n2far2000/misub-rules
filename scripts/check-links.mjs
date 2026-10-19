@@ -183,6 +183,50 @@ async function main() {
     console.log(`校验失败: ${e.message}`);
   }
 
+  // 6.4 聚合版（Agg4）结构与内容校验
+  console.log(`\n--- 聚合版 Agg4 结构校验 ---`);
+  let aggBad = 0;
+  try {
+    const rawBase = `https://raw.githubusercontent.com/${OWNER}/${REPO}/dist`;
+    const txt = await (await fetch(`${rawBase}/misub/Loyalsoldier_Agg4_MiSub.ini`)).text();
+    const ls = txt.split(/\r?\n/);
+    const remote = ls.filter((l) => /^ruleset=.*https:\/\//.test(l)).length;
+    const aggRefs = ls.filter((l) => /^ruleset=.*rules\/clash\/agg-/.test(l)).length;
+    const fin = ls.filter((l) => /^ruleset=.*\[\]FINAL/.test(l)).length;
+    const grp = ls.filter((l) => /^custom_proxy_group=/.test(l)).length;
+    const chk = (label, got, want) => {
+      const ok = got === want;
+      if (!ok) aggBad++;
+      console.log(`${ok ? 'OK  ' : 'FAIL'} ${label}: ${got}（期望 ${want}）`);
+    };
+    chk('远程规则集数', remote, 4);
+    chk('聚合表引用数', aggRefs, 4);
+    chk('FINAL 条数', fin, 1);
+    chk('策略组数', grp, 6);
+
+    // manifest 必须声明 4 张聚合表，且 sourceSum - deduped = count
+    const man = await (await fetch(`${rawBase}/manifest.json`)).json();
+    const aggs = man.aggregates || {};
+    const names = Object.keys(aggs).sort();
+    console.log(`${names.length === 4 ? 'OK  ' : 'FAIL'} manifest.aggregates: ${names.join(', ') || '(缺)'}`);
+    if (names.length !== 4) aggBad++;
+    for (const [n, a] of Object.entries(aggs)) {
+      const mathOk = a.sourceSum - a.deduped === a.count;
+      if (!mathOk) aggBad++;
+      console.log(`${mathOk ? 'OK  ' : 'FAIL'} ${n}: ${a.count} 条 <- ${a.sources.join(' + ')}（去重 ${a.deduped}）`);
+    }
+    const agg4 = man.presets?.Agg4;
+    if (!agg4) {
+      aggBad++;
+      console.log('FAIL manifest 缺少 Agg4 预设');
+    } else {
+      console.log(`OK   Agg4 providers=${agg4.providers} entries=${agg4.entries}`);
+    }
+  } catch (e) {
+    aggBad++;
+    console.log(`校验失败: ${e.message}`);
+  }
+
   // 6.5 README 文档化链接逐条验证（含镜像前缀）
   console.log(`\n--- README 文档链接逐条验证 ---`);
   const DIST = `gh/${OWNER}/${REPO}@dist`;
@@ -197,6 +241,12 @@ async function main() {
     ['历史·极简版', `https://cdn.jsdelivr.net/${DIST}/misub/SubBoost_Minimal_MiSub.ini`],
     ['历史·Clash', `https://cdn.jsdelivr.net/${DIST}/misub-remote/SubBoost_Full_MiSub_clash.ini`],
     ['历史·sing-box', `https://cdn.jsdelivr.net/${DIST}/misub-remote/SubBoost_Full_MiSub_singbox.ini`],
+    ['聚合版·通用', `https://cdn.jsdelivr.net/${DIST}/misub/Loyalsoldier_Agg4_MiSub.ini`],
+    ['聚合版·Clash', `https://cdn.jsdelivr.net/${DIST}/misub-remote/Loyalsoldier_Agg4_MiSub_clash.ini`],
+    ['聚合版·sing-box', `https://cdn.jsdelivr.net/${DIST}/misub-remote/Loyalsoldier_Agg4_MiSub_singbox.ini`],
+    ['聚合规则集·ad', `https://cdn.jsdelivr.net/${DIST}/rules/clash/agg-ad.yaml`],
+    ['聚合规则集·direct', `https://cdn.jsdelivr.net/${DIST}/rules/clash/agg-direct.yaml`],
+    ['聚合规则集·singbox', `https://cdn.jsdelivr.net/${DIST}/rules/singbox/agg-direct.json`],
     ['规则集·reject', `https://cdn.jsdelivr.net/${DIST}/rules/clash/reject.yaml`],
     ['规则集·direct', `https://cdn.jsdelivr.net/${DIST}/rules/clash/direct.yaml`],
     ['规则集·cncidr', `https://cdn.jsdelivr.net/${DIST}/rules/clash/cncidr.yaml`],
@@ -246,7 +296,7 @@ async function main() {
   console.log(`复活数量: ${revived} ${revived === 0 ? '(历史消除有效)' : '(存在残留，需处理)'}`);
 
   console.log(`\n=== 体检结束 ===\n`);
-  process.exit(realFailures.length === 0 && revived === 0 && docBad === 0 ? 0 : 1);
+  process.exit(realFailures.length === 0 && revived === 0 && docBad === 0 && aggBad === 0 ? 0 : 1);
 }
 
 main().catch((e) => {

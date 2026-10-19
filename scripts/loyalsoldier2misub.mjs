@@ -64,6 +64,13 @@ const RULE_BASE = `${CDN_BASE}/${GH_OWNER}/${GH_REPO}@${GH_REF}/rules`;
 
 const SINGLE_PRESET = arg("preset", null);
 
+/**
+ * 显式指定上游 commit（用于可复现构建 / 一致性回归）。
+ * --offline 模式下无法查询 API，若不指定会写成 unknown，
+ * 导致两次构建的 ini 头部不一致。CI 的幂等性校验靠它对齐。
+ */
+const ASSUME_COMMIT = arg("upstream-commit", null);
+
 // ---------------------------------------------------------------- 常量
 
 const UPSTREAM_REPO = "Loyalsoldier/clash-rules";
@@ -81,6 +88,53 @@ const SOURCES = {
   lancidr: { file: "lancidr.txt", kind: "ip", title: "局域网与保留 IP" },
   cncidr: { file: "cncidr.txt", kind: "ip", title: "中国大陆 IP" },
   telegramcidr: { file: "telegramcidr.txt", kind: "ip", title: "Telegram IP" },
+};
+
+/**
+ * 聚合规则集：把多张上游表按「目标策略组」合并成一个文件。
+ *
+ * 为什么需要（详见 docs/plan-aggregation-and-distribution.md）：
+ *   · 一个 rule-provider 只能绑定一个策略组（payload 不带 policy），
+ *     所以「文件数 ≥ 实际使用的策略组数」，语义不变的前提下 10 张表最少能压到 4 个文件。
+ *   · 文件数从 10 降到 4 只减少请求/握手/并发，**不减少传输字节**
+ *     （DOMAIN-SUFFIX, 前缀重复率极高，gzip 前后几乎不变）。
+ *
+ * 分组原则：**只有目标策略组相同的表才能合并**，且 sources 的先后顺序 = 客户端匹配顺序，
+ * 必须与原 ini 中 ruleset= 行的先后顺序一致，否则重叠条目会改变归属。
+ *
+ * 实测的重叠（决定了不能随便删表）：
+ *   proxy ∩ direct = 158 条（265.com / 2mdn.net / admob-cn.com 等国内可加速的境外站）
+ *   private ∩ direct = 5 条、telegramcidr ∩ cncidr = 0、lancidr ∩ cncidr = 0
+ */
+const AGGREGATES = {
+  "agg-private": {
+    title: "私有网络（聚合）",
+    desc: "private 域名 + lancidr 保留网段，目标组 🏠 私有网络",
+    sources: ["private", "lancidr"],
+  },
+  "agg-ad": {
+    title: "广告拦截（聚合）",
+    desc: "reject，目标组 🛑 广告拦截",
+    sources: ["reject"],
+  },
+  "agg-proxy": {
+    title: "代理（聚合）",
+    desc: "proxy 域名 + telegramcidr，目标组 🚀 节点选择",
+    sources: ["proxy", "telegramcidr"],
+  },
+  "agg-direct": {
+    title: "全球直连（聚合）",
+    desc: "direct + apple + icloud + google + cncidr，目标组 🎯 全球直连",
+    sources: ["direct", "apple", "icloud", "google", "cncidr"],
+  },
+};
+
+/** 上游表 + 聚合表的统一元信息查询表（toClashYaml / documentTitleFor 用） */
+const SET_META = {
+  ...SOURCES,
+  ...Object.fromEntries(
+    Object.entries(AGGREGATES).map(([name, a]) => [name, { title: a.title, kind: "mixed", aggregate: true }])
+  ),
 };
 
 /** 仅白名单模式不用的两个表（保留给黑名单模式参考，不产出） */
@@ -168,6 +222,28 @@ const PRESETS = {
       { set: "reject", policy: "🛑 广告拦截" },
       { set: "proxy", policy: "🚀 节点选择" },
       { set: "direct", policy: "🎯 全球直连" },
+      { inline: ["GEOIP", "CN"], policy: "🎯 全球直连" },
+      { final: true, policy: "🐟 漏网之鱼" },
+    ],
+  },
+  /**
+   * Agg4：把 Full 的 10 张表按目标策略组合并成 4 个聚合表。
+   *
+   * 语义等价性取决于两点，改动前务必确认：
+   *   1. 规则顺序与 Full 一致（private 最先、ad 次之、proxy 在 direct 之前）；
+   *   2. 每个聚合表的 sources 顺序与原先 ruleset= 行的顺序一致。
+   * 代价：失去 iCloud / 苹果 / Google / Telegram 四个独立开关（默认值本就相同，默认分流无差异）。
+   */
+  Agg4: {
+    title: "聚合四表",
+    desc: "10 张表按策略组合并为 4 个文件，启动请求数 10 -> 4；细分开关合并进直连/代理",
+    groups: [...CORE_GROUPS, "🛑 广告拦截", "🏠 私有网络", "🎯 全球直连", "🐟 漏网之鱼"],
+    rules: [
+      ...CONSOLE_RULES,
+      { set: "agg-private", policy: "🏠 私有网络" },
+      { set: "agg-ad", policy: "🛑 广告拦截" },
+      { set: "agg-proxy", policy: "🚀 节点选择" },
+      { set: "agg-direct", policy: "🎯 全球直连" },
       { inline: ["GEOIP", "CN"], policy: "🎯 全球直连" },
       { final: true, policy: "🐟 漏网之鱼" },
     ],
@@ -335,11 +411,14 @@ function normalizeSet(name, rawEntries, kind) {
 
 function toClashYaml(set, upstreamCommit) {
   const lines = [
-    `# ${SOURCES[set.name].title} — Loyalsoldier/clash-rules @ ${UPSTREAM_REF}`,
+    `# ${SET_META[set.name].title} — Loyalsoldier/clash-rules @ ${UPSTREAM_REF}`,
     `# 由 loyalsoldier2misub.mjs 生成，共 ${set.count} 条；请勿手改`,
     `# 上游 commit: ${upstreamCommit}`,
-    "payload:",
   ];
+  if (AGGREGATES[set.name]) {
+    lines.push(`# 聚合来源（按此顺序合并）: ${AGGREGATES[set.name].sources.join(" + ")}`);
+  }
+  lines.push("payload:");
   for (const d of set.suffix) lines.push(`  - DOMAIN-SUFFIX,${d}`);
   for (const d of set.exact) lines.push(`  - DOMAIN,${d}`);
   for (const c of set.v4) lines.push(`  - IP-CIDR,${c}`);
@@ -348,13 +427,102 @@ function toClashYaml(set, upstreamCommit) {
   return lines.join("\n");
 }
 
+/**
+ * sing-box source 规则集（version 3）。
+ *
+ * 关键：rules 数组内的多个 rule 是 **OR**（任一匹配即属于该集合），
+ * 而单个 rule 对象内的多字段是 **AND**。聚合表会同时含域名与 IP，
+ * 因此必须拆成多条 rule，否则 domain_suffix ∧ ip_cidr 会永不命中（静默失效）。
+ */
 function toSingboxJson(set) {
-  const rule = {};
-  if (set.suffix.length) rule.domain_suffix = set.suffix;
-  if (set.exact.length) rule.domain = set.exact;
-  if (set.v4.length || set.v6.length) rule.ip_cidr = [...set.v4, ...set.v6];
-  const doc = { version: 3, rules: [rule] };
+  const rules = [];
+  if (set.suffix.length || set.exact.length) {
+    const r = {};
+    if (set.suffix.length) r.domain_suffix = set.suffix;
+    if (set.exact.length) r.domain = set.exact;
+    rules.push(r);
+  }
+  if (set.v4.length || set.v6.length) {
+    rules.push({ ip_cidr: [...set.v4, ...set.v6] });
+  }
+  if (rules.length === 0) rules.push({});
+  const doc = { version: 3, rules };
   return JSON.stringify(doc);
+}
+
+/**
+ * 生成聚合表：按 AGGREGATES 的 sources 顺序拼接，**组内去重且保留首次出现顺序**。
+ *
+ * 去重只发生在同一个聚合表内部；跨表绝不去重（跨表重叠是有语义的，
+ * 例如 proxy ∩ direct 的 158 条靠「proxy 表在前」才走代理）。
+ * 每个聚合表生成后立即自检：
+ *   · 无重复条目（suffix/exact/v4/v6 各自的 Set 大小 == 数组长度）
+ *   · 各源条目全部包含在聚合结果中（子集校验）
+ */
+function buildAggregates(sets) {
+  const out = {};
+  for (const [name, spec] of Object.entries(AGGREGATES)) {
+    const suffix = new Set();
+    const exact = new Set();
+    const v4 = new Set();
+    const v6 = new Set();
+    const perSource = [];
+
+    for (const src of spec.sources) {
+      const s = sets[src];
+      if (!s) fatal(`聚合表 ${name} 引用了不存在的源: ${src}`);
+      const before = suffix.size + exact.size + v4.size + v6.size;
+      for (const d of s.suffix) suffix.add(d);
+      for (const d of s.exact) exact.add(d);
+      for (const c of s.v4) v4.add(c);
+      for (const c of s.v6) v6.add(c);
+      const after = suffix.size + exact.size + v4.size + v6.size;
+      perSource.push({ src, count: s.count, added: after - before });
+    }
+
+    const agg = {
+      name,
+      kind: "mixed",
+      aggregate: true,
+      title: spec.title,
+      sources: spec.sources,
+      perSource,
+      suffix: [...suffix],
+      exact: [...exact],
+      v4: [...v4],
+      v6: [...v6],
+      count: suffix.size + exact.size + v4.size + v6.size,
+      raw: spec.sources.reduce((n, s) => n + sets[s].raw, 0),
+    };
+
+    // 自检 1：无重复
+    if (
+      agg.suffix.length !== suffix.size ||
+      agg.exact.length !== exact.size ||
+      agg.v4.length !== v4.size ||
+      agg.v6.length !== v6.size
+    ) {
+      fatal(`聚合表 ${name} 内部存在重复条目`);
+    }
+    // 自检 2：各源全包含
+    for (const src of spec.sources) {
+      const s = sets[src];
+      for (const d of s.suffix) if (!suffix.has(d)) fatal(`聚合表 ${name} 丢失 ${src} 的条目: ${d}`);
+      for (const d of s.exact) if (!exact.has(d)) fatal(`聚合表 ${name} 丢失 ${src} 的条目: ${d}`);
+      for (const c of s.v4) if (!v4.has(c)) fatal(`聚合表 ${name} 丢失 ${src} 的条目: ${c}`);
+      for (const c of s.v6) if (!v6.has(c)) fatal(`聚合表 ${name} 丢失 ${src} 的条目: ${c}`);
+    }
+    // 自检 3：只能变小（去重），不能变大
+    const sum = spec.sources.reduce((n, s) => n + sets[s].count, 0);
+    if (agg.count > sum) fatal(`聚合表 ${name} 条目数 ${agg.count} 大于各源之和 ${sum}`);
+    // 自检 4：必须同时保持「域名或 IP」至少一类非空
+    if (agg.count === 0) fatal(`聚合表 ${name} 为空`);
+
+    agg.suffixSet = new Set(agg.suffix);
+    agg.exactSet = new Set(agg.exact);
+    out[name] = agg;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- ini
@@ -443,7 +611,11 @@ function renderIni({ presetName, preset, ruleBase, ext, upstreamCommit, builtAt,
 function documentTitleFor(ruleLine) {
   if (ruleLine.kind === "final") return "白名单兜底：未命中即走代理";
   if (ruleLine.kind === "inline") return `内联 ${ruleLine.type},${ruleLine.value}`;
-  if (ruleLine.kind === "remote") return SOURCES[ruleLine.set]?.title || "";
+  if (ruleLine.kind === "remote") {
+    const meta = SET_META[ruleLine.set];
+    if (!meta) return "";
+    return AGGREGATES[ruleLine.set] ? `${meta.title} <- ${AGGREGATES[ruleLine.set].sources.join(" + ")}` : meta.title;
+  }
   return "";
 }
 
@@ -519,7 +691,7 @@ function memberOrFilter(part, members, filters) {
   else members.push(part);
 }
 
-function verifyIni(inLabel, iniText, sets, presetName, ruleBase) {
+function verifyIni(inLabel, iniText, sets, presetName, ruleBase, preset) {
   const { rules, groups } = parseIniForVerify(iniText);
   const problems = [];
 
@@ -562,29 +734,44 @@ function verifyIni(inLabel, iniText, sets, presetName, ruleBase) {
     else if (!sets[m[1]]) problems.push(`规则集 URL 指向未生成的集合: ${m[1]}`);
   }
 
-  // 5. 路由顺序模拟：各表的首条条目应当命中自己的策略组
+  // 5. 远程规则集数量必须与预设声明一致（防止聚合改造后 provider 数悄悄回退）
+  if (preset) {
+    const declared = preset.rules.filter((r) => r.set).length;
+    const actual = rules.filter((r) => r.kind === "remote").length;
+    if (actual !== declared) {
+      problems.push(`远程规则集数量 ${actual} 与预设声明 ${declared} 不一致`);
+    }
+    // 聚合预设不应再出现「一表一组」的散装引用
+    if (presetName.startsWith("Agg") && actual > 4) {
+      problems.push(`聚合预设 ${presetName} 的 provider 数为 ${actual}，应 <= 4`);
+    }
+  }
+
+  // 6. 路由顺序模拟
   const ordered = [];
   for (const r of rules) {
     if (r.kind === "remote") {
       const name = r.url.split("/").pop().replace(/\.(yaml|json)$/i, "");
-      ordered.push({ policy: r.policy, set: sets[name] });
+      ordered.push({ name, policy: r.policy, set: sets[name] });
     } else if (r.type && r.type !== "final" && r.type !== "geoip") {
-      ordered.push({ policy: r.policy, exactInline: r.value.toLowerCase() });
+      ordered.push({ name: "(inline)", policy: r.policy, exactInline: r.value.toLowerCase() });
     }
   }
+  const orderIndex = new Map(ordered.map((o, i) => [o.name, i]));
 
+  /** 返回首个命中的 { policy, via }；via 是命中的来源名 */
   const routeOf = (host) => {
     for (const o of ordered) {
       if (o.exactInline) {
-        if (host === o.exactInline) return o.policy;
+        if (host === o.exactInline) return { policy: o.policy, via: o.name };
         continue;
       }
       const s = o.set;
-      if (!s || s.kind !== "domain") continue;
-      if (s.exactSet.has(host)) return o.policy;
+      if (!s || !s.exactSet || !s.suffixSet) continue;
+      if (s.exactSet.has(host)) return { policy: o.policy, via: o.name };
       let h = host;
       while (true) {
-        if (s.suffixSet.has(h)) return o.policy;
+        if (s.suffixSet.has(h)) return { policy: o.policy, via: o.name };
         const i = h.indexOf(".");
         if (i < 0) break;
         h = h.slice(i + 1);
@@ -593,29 +780,63 @@ function verifyIni(inLabel, iniText, sets, presetName, ruleBase) {
     return null;
   };
 
+  /** 每个集合取首 / 中 / 末三个探针，避免只验证第一条的假阳性 */
+  const pickProbes = (s) => {
+    const out = [];
+    const pushDomains = (arr, prefix) => {
+      if (!arr.length) return;
+      for (const i of new Set([0, Math.floor(arr.length / 2), arr.length - 1])) {
+        out.push(prefix ? `probe.${arr[i]}` : arr[i]);
+      }
+    };
+    pushDomains(s.suffix, true);
+    if (out.length === 0) pushDomains(s.exact, false);
+    return out;
+  };
+
   const samples = [];
   for (const r of rules) {
     if (r.kind !== "remote") continue;
     const name = r.url.split("/").pop().replace(/\.(yaml|json)$/i, "");
     const s = sets[name];
-    if (!s || s.kind !== "domain") continue;
-    const probe = s.suffix[0] || s.exact[0];
-    if (!probe) continue;
-    const host = `probe.${probe}`;
-    const got = routeOf(host);
-    samples.push({ set: name, host, expect: r.policy, got });
-    if (got !== r.policy) {
-      problems.push(`路由顺序异常: ${name} 的样例 ${host} 命中 ${got}，期望 ${r.policy}`);
+    if (!s) continue;
+    for (const host of pickProbes(s)) {
+      const got = routeOf(host);
+      if (!got) {
+        problems.push(`路由模拟：${name} 的探针 ${host} 未命中任何规则（期望 ${r.policy}）`);
+        continue;
+      }
+      if (got.policy === r.policy) {
+        samples.push({ set: name, host, expect: r.policy, got: got.policy, ok: true });
+        continue;
+      }
+      const gotIdx = orderIndex.get(got.via);
+      const selfIdx = orderIndex.get(name);
+      if (got.via !== name && gotIdx !== undefined && selfIdx !== undefined && gotIdx < selfIdx) {
+        // 被更靠前的表覆盖：这是原始顺序决定的语义（如 proxy 在 direct 之前），不算错误
+        samples.push({ set: name, host, expect: r.policy, got: got.policy, covered: true });
+        continue;
+      }
+      problems.push(`路由顺序异常: ${name} 的样例 ${host} 命中 ${got.policy}（经由 ${got.via}），期望 ${r.policy}`);
     }
   }
 
-  // 6. 未命中任何表时应落到 FINAL 之后的兜底组（此处仅确认 FINAL 存在，见 3）
+  // 7. 聚合表必须真的被引用（防止聚合产物生成了但没人用）
+  for (const aggName of Object.keys(AGGREGATES)) {
+    const used = rules.some((r) => r.kind === "remote" && r.url.includes(`/${aggName}.`));
+    const expected = preset ? preset.rules.some((r) => r.set === aggName) : false;
+    if (expected && !used) problems.push(`预设声明了聚合表 ${aggName} 但 ini 中没有引用`);
+  }
+
+  // 8. 未命中任何表时应落到 FINAL 之后的兜底组（此处仅确认 FINAL 存在，见 3）
 
   const tag = `${presetName}${inLabel ? ` (${inLabel})` : ""}`;
   if (problems.length === 0) {
+    const remoteCount = rules.filter((r) => r.kind === "remote").length;
+    const covered = samples.filter((s) => s.covered).length;
     log(
-      `  [PASS] ${tag}: ${rules.length} 条规则 / ${groups.length} 个策略组 / ` +
-        `路由抽样 ${samples.length} 项全部命中预期`
+      `  [PASS] ${tag}: ${rules.length} 条规则 / ${remoteCount} 个规则集 / ${groups.length} 个策略组 / ` +
+        `路由抽样 ${samples.length} 项（跨表覆盖 ${covered}）全部符合预期`
     );
   } else {
     log(`  [FAIL] ${tag}`);
@@ -637,7 +858,10 @@ async function main() {
   }
 
   let upstreamCommit = "unknown";
-  if (!OFFLINE) {
+  if (ASSUME_COMMIT) {
+    upstreamCommit = ASSUME_COMMIT;
+    log(`上游 commit: ${ASSUME_COMMIT}（由 --upstream-commit 指定）`);
+  } else if (!OFFLINE) {
     try {
       const branch = JSON.parse(
         await fetchText(`https://api.github.com/repos/${UPSTREAM_REPO}/branches/${UPSTREAM_REF}`, 20000)
@@ -670,6 +894,17 @@ async function main() {
 
   const emptySets = Object.values(sets).filter((s) => s.count === 0);
   if (emptySets.length) fatal(`存在空规则集: ${emptySets.map((s) => s.name).join(", ")}`);
+
+  log("");
+  log("聚合（按目标策略组合并，仅组内去重）:");
+  const aggs = buildAggregates(sets);
+  for (const a of Object.values(aggs)) {
+    log(
+      `  ${a.name.padEnd(14)} ${String(a.count).padStart(7)} 条  <- ${a.sources.join(" + ")}` +
+        `（各源合计 ${a.perSource.reduce((n, p) => n + p.count, 0)}，去重 ${a.perSource.reduce((n, p) => n + p.count, 0) - a.count}）`
+    );
+  }
+  const allSets = { ...sets, ...aggs };
 
   const builtAt = new Date().toISOString();
   const presetNames = ALL_PRESETS ? Object.keys(PRESETS) : [SINGLE_PRESET || "Full"];
@@ -712,11 +947,13 @@ async function main() {
   if (DIST) {
     log("");
     log("写出规则集:");
-    for (const [name, s] of Object.entries(sets)) {
+    for (const [name, s] of Object.entries(allSets)) {
       const y = await write(`rules/clash/${name}.yaml`, toClashYaml(s, upstreamCommit));
       const j = await write(`rules/singbox/${name}.json`, toSingboxJson(s));
       written.push(y, j);
-      log(`  ${name.padEnd(14)} clash ${MIB(y.bytes).padStart(10)}   singbox ${MIB(j.bytes).padStart(10)}`);
+      log(
+        `  ${name.padEnd(14)}${AGGREGATES[name] ? "[agg] " : "      "} clash ${MIB(y.bytes).padStart(10)}   singbox ${MIB(j.bytes).padStart(10)}`
+      );
     }
   }
 
@@ -741,7 +978,15 @@ async function main() {
     }
 
     if (DO_VERIFY) {
-      ok = verifyIni(`remote-${r.label}`, r.ini, sets, r.pName, `${RULE_BASE}/${r.ext === "yaml" ? "clash" : "singbox"}`) && ok;
+      ok =
+        verifyIni(
+          `remote-${r.label}`,
+          r.ini,
+          allSets,
+          r.pName,
+          `${RULE_BASE}/${r.ext === "yaml" ? "clash" : "singbox"}`,
+          PRESETS[r.pName]
+        ) && ok;
     }
   }
 
@@ -784,9 +1029,10 @@ async function main() {
             title: PRESETS[p].title,
             desc: PRESETS[p].desc,
             sets: PRESETS[p].rules.filter((r) => r.set).map((r) => r.set),
+            providers: PRESETS[p].rules.filter((r) => r.set).length,
             entries: PRESETS[p].rules
               .filter((r) => r.set)
-              .reduce((n, r) => n + (sets[r.set]?.count || 0), 0),
+              .reduce((n, r) => n + (allSets[r.set]?.count || 0), 0),
             files: {
               generic: `misub/${NEW_PREFIX}_${p}_MiSub.ini`,
               clash: `misub-remote/${NEW_PREFIX}_${p}_MiSub_clash.ini`,
@@ -809,6 +1055,37 @@ async function main() {
             count: s.count,
             clash: `rules/clash/${n}.yaml`,
             singbox: `rules/singbox/${n}.json`,
+          },
+        ])
+      ),
+      /**
+       * 聚合表清单。sourceSum - count = 组内重复被去重的条目数（跨组不去重）。
+       * 一份聚合表只能绑定一个策略组，见 AGGREGATES 注释。
+       */
+      aggregates: Object.fromEntries(
+        Object.entries(aggs).map(([n, a]) => [
+          n,
+          {
+            title: a.title,
+            desc: AGGREGATES[n].desc,
+            sources: a.sources,
+            count: a.count,
+            sourceSum: a.perSource.reduce((x, p) => x + p.count, 0),
+            deduped: a.perSource.reduce((x, p) => x + p.count, 0) - a.count,
+            clash: `rules/clash/${n}.yaml`,
+            singbox: `rules/singbox/${n}.json`,
+          },
+        ])
+      ),
+      /** 预设对比：providers 越多 = 客户端启动时并发请求越多 */
+      presetsSummary: Object.fromEntries(
+        presetNames.map((p) => [
+          p,
+          {
+            title: PRESETS[p].title,
+            providers: PRESETS[p].rules.filter((r) => r.set).length,
+            groups: PRESETS[p].groups.length,
+            entries: PRESETS[p].rules.filter((r) => r.set).reduce((n, r) => n + (allSets[r.set]?.count || 0), 0),
           },
         ])
       ),
