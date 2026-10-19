@@ -255,16 +255,13 @@ jobs:
           # purge 失败不阻断发布（12 小时后 CDN 会自愈），但必须显式留痕
           [ "$bad" -eq 0 ] || echo "::warning::有 $bad 个路径 purge 失败，最长 12 小时后自愈"
 
-      # 断言 CDN 已经吐出新版内容。这一步是对「链接里的规则集是否最新」的直接回答，
-      # 比只看 raw 有意义 —— 客户端实际走的就是这条通道。
-      - name: Verify jsDelivr serves current commit
+      # 断言 CDN 吐出的内容与本地产物逐字节相同。
+      # 这一步是对「链接里的规则集是否最新」的直接回答 —— 客户端走的就是这条通道。
+      # 不用「文件里是否含 commit SHA」做判据：sing-box 的 JSON 没有注释头，
+      # 本来就写不进 commit，那样断言必然误报。
+      - name: Verify jsDelivr serves current build
         run: |
           set -euo pipefail
-          SHA="${{ steps.manifest.outputs.upstream_commit }}"
-          if [ -z "$SHA" ] || [ "$SHA" = "unknown" ]; then
-            echo "::warning::上游 commit 未解析到，跳过 CDN 内容断言"
-            exit 0
-          fi
           BASE="https://cdn.jsdelivr.net/gh/${{ github.repository }}@dist"
           # purge 后给边缘节点一点传播时间
           sleep 30
@@ -273,19 +270,24 @@ jobs:
             "rules/clash/reject.yaml" \
             "rules/clash/agg-ad.yaml" \
             "rules/singbox/reject.json" \
+            "misub/Loyalsoldier_Agg4_MiSub.ini" \
             "manifest.json" ; do
-            got=""
+            WANT=$(md5sum "$RUNNER_TEMP/dist-out/$p" | cut -d' ' -f1)
+            GOT=""
             for attempt in 1 2 3 4 5; do
-              got=$(curl -s -m 60 "$BASE/$p" | grep -o "$SHA" | head -1 || true)
-              [ -n "$got" ] && break
+              if curl -s -f -m 60 "$BASE/$p" -o "$RUNNER_TEMP/cdn.bin"; then
+                GOT=$(md5sum "$RUNNER_TEMP/cdn.bin" | cut -d' ' -f1)
+                [ "$GOT" = "$WANT" ] && break
+              fi
               sleep 15
             done
-            if [ -n "$got" ]; then
-              echo "OK   $p 已含 $SHA"
+            if [ "$GOT" = "$WANT" ]; then
+              echo "OK   $p md5=$WANT"
             else
-              echo "FAIL $p 仍不是 commit $SHA（CDN 未刷新）"
+              echo "FAIL $p CDN=$GOT 期望=$WANT（CDN 仍是上一版）"
               fail=1
             fi
+            rm -f "$RUNNER_TEMP/cdn.bin"
           done
           exit $fail
 
