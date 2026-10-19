@@ -150,7 +150,8 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://raw.githubusercontent.com/${{ github.repository }}/dist"
-          # 只校验 raw（无 CDN 缓存，推送后立即可见）；jsDelivr 有约 12h 分支缓存，不适合做门禁
+          # 只校验 raw（无分支引用缓存，推送后立即可见）。
+          # jsDelivr 的刷新由后续 Purge 步骤保证，不走这条通道做门禁。
           PATHS=(
             "misub/Loyalsoldier_Full_MiSub.ini"
             "misub/Loyalsoldier_Standard_MiSub.ini"
@@ -209,6 +210,85 @@ jobs:
           rm -f "$TMP"
           exit $fail
 
+      # ---------------------------------------------------------------
+      # jsDelivr 缓存失效（否则客户端会拿到「旧版规则集」）
+      #
+      # jsDelivr 对「分支引用」的解析结果缓存 12 小时
+      #   （响应头 Cache-Control: public, max-age=604800, s-maxage=43200）
+      # 每次 force push 到 dist 之后，@dist 仍可能在部分边缘节点被解析成
+      # 上一个 commit，客户端下载到的规则集内容就还是旧的 ——
+      # 这正是 2026-10-19 上报的「链接中的规则集还是旧版的」的根因。
+      #
+      # 这里对全部产物路径主动 purge，把最长 12 小时的滞后压到几十秒。
+      # purge 无需鉴权，接口返回 {"status":"finished"}。
+      # ---------------------------------------------------------------
+      - name: Purge jsDelivr cache
+        id: purge
+        run: |
+          set -euo pipefail
+          BASE="https://purge.jsdelivr.net/gh/${{ github.repository }}@dist"
+          find "$RUNNER_TEMP/dist-out" -type f \
+            | sed "s#^$RUNNER_TEMP/dist-out/##" | sort > "$RUNNER_TEMP/purge.txt"
+          TOTAL=$(wc -l < "$RUNNER_TEMP/purge.txt")
+          echo "待 purge: $TOTAL 个路径"
+          ok=0; bad=0
+          while IFS= read -r p; do
+            code=""
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 30 "$BASE/$p" || echo 000)
+              [ "$code" = "200" ] && break
+              sleep 3
+            done
+            if [ "$code" = "200" ]; then
+              ok=$((ok+1))
+            else
+              echo "  purge FAIL $p ($code)"
+              bad=$((bad+1))
+            fi
+            sleep 0.4
+          done < "$RUNNER_TEMP/purge.txt"
+          echo "purge 成功 $ok / 失败 $bad"
+          {
+            echo "ok=$ok"
+            echo "bad=$bad"
+          } >> "$GITHUB_OUTPUT"
+          # purge 失败不阻断发布（12 小时后 CDN 会自愈），但必须显式留痕
+          [ "$bad" -eq 0 ] || echo "::warning::有 $bad 个路径 purge 失败，最长 12 小时后自愈"
+
+      # 断言 CDN 已经吐出新版内容。这一步是对「链接里的规则集是否最新」的直接回答，
+      # 比只看 raw 有意义 —— 客户端实际走的就是这条通道。
+      - name: Verify jsDelivr serves current commit
+        run: |
+          set -euo pipefail
+          SHA="${{ steps.manifest.outputs.upstream_commit }}"
+          if [ -z "$SHA" ] || [ "$SHA" = "unknown" ]; then
+            echo "::warning::上游 commit 未解析到，跳过 CDN 内容断言"
+            exit 0
+          fi
+          BASE="https://cdn.jsdelivr.net/gh/${{ github.repository }}@dist"
+          # purge 后给边缘节点一点传播时间
+          sleep 30
+          fail=0
+          for p in \
+            "rules/clash/reject.yaml" \
+            "rules/clash/agg-ad.yaml" \
+            "rules/singbox/reject.json" \
+            "manifest.json" ; do
+            got=""
+            for attempt in 1 2 3 4 5; do
+              got=$(curl -s -m 60 "$BASE/$p" | grep -o "$SHA" | head -1 || true)
+              [ -n "$got" ] && break
+              sleep 15
+            done
+            if [ -n "$got" ]; then
+              echo "OK   $p 已含 $SHA"
+            else
+              echo "FAIL $p 仍不是 commit $SHA（CDN 未刷新）"
+              fail=1
+            fi
+          done
+          exit $fail
+
       - name: Summary
         run: |
           {
@@ -224,6 +304,7 @@ jobs:
             echo "| 聚合版条目数 | ${{ steps.manifest.outputs.agg4_entries }}（provider ${{ steps.manifest.outputs.agg4_providers }}） |"
             echo "| 产物文件数 | ${{ steps.manifest.outputs.files }} |"
             echo "| 产物体积 | $(echo "${{ steps.manifest.outputs.bytes }}" | awk '{printf "%.2f MB", $1/1048576}') |"
+            echo "| CDN purge | ${{ steps.purge.outputs.ok }} 成功 / ${{ steps.purge.outputs.bad }} 失败 |"
             echo ""
             echo "一致性校验：幂等重建逐字节一致 ✅"
             echo ""

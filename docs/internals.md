@@ -259,9 +259,31 @@ node scripts/check-links.mjs --owner <owner> --repo misub-rules
 - **没有跑真的 mihomo / sing-box 内核。** 规则文件的合法性是用 js-yaml 解析 + 规则类型
   白名单校验来近似的，不等于内核真的能加载。改动规则集格式后，务必至少用一个真实客户端
   导入一次。
-- **jsDelivr 分支缓存约 12 小时。** 推送后 `raw` 立刻是新版，CDN 仍是旧版属正常现象。
-  purge（`POST https://purge.jsdelivr.net/`）只清边缘，内部还有一层会按需回填，
-  purge 完立刻测会自我欺骗 —— 要静置约 60 秒后再单次实测。
+- **jsDelivr 分支缓存 12 小时，且已由 CI 自动 purge。**
+  推送后 `raw` 立刻是新版；CDN 走的是「分支引用 → commit」的解析缓存
+  （`Cache-Control: public, max-age=604800, s-maxage=43200`），
+  未 purge 时最多 12 小时内仍可能吐回上一个 commit 的文件 ——
+  **客户端看到「规则集还是旧版」绝大多数是这一层**，不是产物没更新。
+  workflow 的 `Purge jsDelivr cache` 步骤会对全部产物路径逐个 purge，
+  随后 `Verify jsDelivr serves current commit` 断言 `rules/clash/reject.yaml`、
+  `rules/clash/agg-ad.yaml`、`rules/singbox/reject.json`、`manifest.json`
+  里确实出现当前上游 commit，否则 job 失败。
+  手动 purge：`https://purge.jsdelivr.net/gh/<owner>/<repo>@dist/<路径>`（GET 或 POST 均可，无需鉴权）。
+  批量：
+
+  ```bash
+  for p in $(git ls-tree -r --name-only dist); do
+    curl -s -o /dev/null "https://purge.jsdelivr.net/gh/<owner>/<repo>@dist/$p"
+    sleep 0.4
+  done
+  ```
+
+  purge 完别立刻测 —— 测试请求会自我回填，静置约 60 秒后单次实测才准。
+- **客户端自身也有一层缓存。** mihomo 把规则集落盘在 `ruleset/`，
+  按 `interval: 86400` 才重新请求，且条件请求命中就沿用本地文件。
+  所以即使 CDN 已是新版，客户端也可能滞后最多 24 小时。
+  **判定方法：比对 CDN 文件头部的 `# 上游 commit:` 与 `manifest.json` 的 `source.commit`**，
+  两者一致即可判定问题在客户端侧。
 - **sing-box 的兜底策略不受 ini 控制**（见 1.3），验证只能确认它存在，不能改变它。
 
 ---
@@ -277,3 +299,5 @@ node scripts/check-links.mjs --owner <owner> --repo misub-rules
 - [ ] 新增 / 改名产物文件时，**同步产出 `SubBoost_*` 兼容副本**，否则旧订阅链接会 404
 - [ ] 聚合表：一个文件只对一个策略组；sing-box 侧域名与 IP 拆成两条 rule；跨组不去重
 - [ ] 跑完第 6 节的四条命令，并用真实客户端导入一次
+- [ ] 若手工发布（不经 workflow），发布后必须自己 purge 新路径；purge 清单是按
+      `dist` 实际文件枚举的，CI 里无需为新文件额外配置

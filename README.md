@@ -384,6 +384,26 @@ CI 在发布前会用同一份缓存离线重建第二份产物，再用 `check-
 用方式一（远程 URL）不需要。用方式二（本地粘贴）时，日常数据变化不影响结构；
 只有生成器改了模板结构才需要重新粘贴。
 
+**更新了，但客户端拿到的规则集还是旧的？**
+
+这是 jsDelivr 的缓存行为，不是产物没更新。分两层：
+
+1. **CDN 层**：jsDelivr 对「分支引用」`@dist` 的解析结果缓存 12 小时
+   （响应头 `Cache-Control: public, max-age=604800, s-maxage=43200`）。
+   发布后部分边缘节点仍可能解析到上一个 commit，于是吐回旧文件。
+   本项目在每次发布后**自动 purge 全部产物路径**，并断言 CDN 已含当前上游 commit
+   —— 正常情况滞后只有几十秒。若你仍看到旧内容，可手动触发一次
+   `https://purge.jsdelivr.net/gh/n2far2000/misub-rules@dist/<文件路径>`。
+2. **客户端层**：mihomo 把规则集落盘在 `ruleset/`，按 `interval: 86400`（24 小时）
+   才重新请求，且带条件请求、内容没变就沿用本地文件。
+   想立即生效：在客户端里「更新订阅」并清除规则集缓存，或删除 `ruleset/` 目录后重启。
+
+怎么判断是哪种：直接打开
+`https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/rules/clash/private.yaml`，
+看第 3 行 `# 上游 commit:` 的值，与
+[manifest.json](https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/manifest.json)
+里的 `source.commit` 比对。两者一致 → CDN 已是新版，问题在客户端缓存。
+
 **`SubBoost_*` 链接还能用吗？**
 
 能，且长期保留。它们每天与新链接一起产出，内容完全一致。
