@@ -214,16 +214,22 @@ jobs:
 
           # 加速通道断言：内层 URL 必须指向 gh-proxy，且不能出现裸 raw 直链
           # （裸 raw 会被 MiSub 的 pinRemoteRuleUrl 改写回 jsDelivr，加速失效）
+          #
+          # 注意：gh-proxy 的 URL 形如 https://gh-proxy.com/https://raw.githubusercontent.com/...
+          # 字符串里天然含 raw 域名，所以「裸 raw」必须按「逗号后紧跟 raw」判定，
+          # 不能用 `grep 'https://raw.githubusercontent.com/'` —— 那会把加速版也数进去。
           TMP=$(mktemp)
-          fetch_retry "$BASE/misub-remote-fast/Loyalsoldier_Agg4_MiSub_clash.ini" "$TMP" > /dev/null \
-            || { echo "FAIL: fast 版 ini 不可读"; exit 1; }
-          FAST_PROXY=$(grep -c '^ruleset=.*https://gh-proxy.com/' "$TMP" || true)
-          FAST_RAW=$(grep -c '^ruleset=.*https://raw\.githubusercontent\.com/' "$TMP" || true)
-          FAST_SP=$(grep -c '^ruleset=.*rules/clash/agg-' "$TMP" || true)
-          echo "fast: gh-proxy 引用 $FAST_PROXY / 裸 raw $FAST_RAW / clash 聚合 $FAST_SP"
-          [ "$FAST_PROXY" = "4" ] || { echo "FAIL: fast 版应有 4 条 gh-proxy 引用，实际 $FAST_PROXY"; fail=1; }
-          [ "$FAST_RAW" = "0" ] || { echo "FAIL: fast 版不应出现裸 raw 直链，实际 $FAST_RAW"; fail=1; }
-          [ "$FAST_SP" = "4" ] || { echo "FAIL: fast 版 clash 聚合引用应为 4，实际 $FAST_SP"; fail=1; }
+          if fetch_retry "$BASE/misub-remote-fast/Loyalsoldier_Agg4_MiSub_clash.ini" "$TMP" > /dev/null; then
+            FAST_PROXY=$(grep -c '^ruleset=.*https://gh-proxy.com/' "$TMP" || true)
+            FAST_RAW=$(grep -cE '^ruleset=[^,]*,https://raw\.githubusercontent\.com/' "$TMP" || true)
+            FAST_SP=$(grep -c '^ruleset=.*rules/clash/agg-' "$TMP" || true)
+            echo "fast: gh-proxy 引用 $FAST_PROXY / 裸 raw $FAST_RAW / clash 聚合 $FAST_SP"
+            [ "$FAST_PROXY" = "4" ] || { echo "FAIL: fast 版应有 4 条 gh-proxy 引用，实际 $FAST_PROXY"; fail=1; }
+            [ "$FAST_RAW" = "0" ] || { echo "FAIL: fast 版不应出现裸 raw 直链，实际 $FAST_RAW"; fail=1; }
+            [ "$FAST_SP" = "4" ] || { echo "FAIL: fast 版 clash 聚合引用应为 4，实际 $FAST_SP"; fail=1; }
+          else
+            echo "FAIL: fast 版 ini 不可读"; fail=1
+          fi
           rm -f "$TMP"
           exit $fail
 
