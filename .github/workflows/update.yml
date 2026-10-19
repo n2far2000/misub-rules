@@ -227,7 +227,8 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://purge.jsdelivr.net/gh/${{ github.repository }}@dist"
-          find "$RUNNER_TEMP/dist-out" -type f \
+          # *-raw/ 下的产物内层直连 raw，不经过 jsDelivr，purge 无意义（会 404 制造噪音）
+          find "$RUNNER_TEMP/dist-out" -type f ! -path '*-raw/*' \
             | sed "s#^$RUNNER_TEMP/dist-out/##" | sort > "$RUNNER_TEMP/purge.txt"
           TOTAL=$(wc -l < "$RUNNER_TEMP/purge.txt")
           echo "待 purge: $TOTAL 个路径"

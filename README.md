@@ -106,6 +106,27 @@ node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 | Clash / Mihomo | `...@dist/misub-remote/Loyalsoldier_Full_MiSub_clash.ini` | `...@dist/misub-remote/Loyalsoldier_Agg4_MiSub_clash.ini` |
 | sing-box | `...@dist/misub-remote/Loyalsoldier_Full_MiSub_singbox.ini` | `...@dist/misub-remote/Loyalsoldier_Agg4_MiSub_singbox.ini` |
 
+### 永远最新（raw 通道）
+
+jsDelivr 对 `@dist` 这种**分支引用**的「分支名 → commit」解析结果按边缘节点缓存，
+最长 12 小时且 push 后无法 purge。后果是**模板是新的、里面的规则集还是旧的**。
+
+`*-raw/` 目录下的产物是针对这个问题的版本：**内层 `rule-provider` 直连
+`raw.githubusercontent.com`**（raw 只有约 5 分钟的短缓存），因此模板与规则集永远同步到最新一次构建。
+
+| 预设 | 永远最新的链接 |
+|---|---|
+| **聚合版**（推荐） | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-raw/Loyalsoldier_Agg4_MiSub.ini` |
+| 聚合版 · Clash | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-remote-raw/Loyalsoldier_Agg4_MiSub_clash.ini` |
+| 聚合版 · sing-box | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-remote-raw/Loyalsoldier_Agg4_MiSub_singbox.ini` |
+| 完整版 | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-raw/Loyalsoldier_Full_MiSub.ini` |
+| 标准版 | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-raw/Loyalsoldier_Standard_MiSub.ini` |
+| 极简版 | `https://raw.githubusercontent.com/n2far2000/misub-rules/dist/misub-raw/Loyalsoldier_Minimal_MiSub.ini` |
+
+> **怎么选**：raw 域名在部分国内网络会被干扰或限速（聚合版冷启动需拉约 2.3 MB gzip）。
+> 能正常访问 raw 就优先用它——它是唯一能做到「规则集不过期」的通道；
+> 若 raw 不稳定，退回上面的 jsDelivr 链接，接受最长 12 小时的规则集滞后。
+
 ### 历史链接（兼容保留）
 
 旧版本使用 `SubBoost_*` 命名。这些路径**继续产出且内容与新链接完全一致**，
@@ -133,6 +154,7 @@ node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 `testingcf.jsdelivr.net` 或 `gcore.jsdelivr.net`。
 
 > jsDelivr 对**分支引用**的缓存约 12 小时，产物更新后最长半天全网生效。
+> 需要「规则集也不滞后」请用上面的 [raw 通道](#永远最新raw-通道)。
 
 ## 四档预设
 

@@ -60,7 +60,20 @@ const GH_OWNER = arg("gh-owner", "n2far2000");
 const GH_REPO = arg("gh-repo", "misub-rules");
 const GH_REF = arg("gh-ref", "dist");
 const CDN_BASE = String(arg("cdn", "https://cdn.jsdelivr.net/gh")).replace(/\/$/, "");
-const RULE_BASE = `${CDN_BASE}/${GH_OWNER}/${GH_REPO}@${GH_REF}/rules`;
+
+/**
+ * 两种 CDN 的 ref 写法不同，硬拼会拼出废链：
+ *   jsDelivr  cdn.jsdelivr.net/gh/<owner>/<repo>@<ref>/rules        （@ 分隔）
+ *   raw       raw.githubusercontent.com/<owner>/<repo>/<ref>/rules  （路径分隔）
+ * 自动识别，避免 `--cdn https://raw.githubusercontent.com` 生成 `repo@dist`。
+ */
+const RAW_CDN_BASE = String(arg("raw-cdn", "https://raw.githubusercontent.com")).replace(/\/$/, "");
+const isRawStyle = (base) => /raw\.githubusercontent\.com/.test(base);
+const refUrl = (base, owner, repo, ref) =>
+  isRawStyle(base) ? `${base}/${owner}/${repo}/${ref}` : `${base}/${owner}/${repo}@${ref}`;
+
+const RULE_BASE = `${refUrl(CDN_BASE, GH_OWNER, GH_REPO, GH_REF)}/rules`;
+const RAW_RULE_BASE = `${refUrl(RAW_CDN_BASE, GH_OWNER, GH_REPO, GH_REF)}/rules`;
 
 const SINGLE_PRESET = arg("preset", null);
 
@@ -955,6 +968,7 @@ async function main() {
     for (const ext of ["yaml", "json"]) {
       const label = ext === "yaml" ? "clash" : "singbox";
       const ruleBase = `${RULE_BASE}/${ext === "yaml" ? "clash" : "singbox"}`;
+      const rawRuleBase = `${RAW_RULE_BASE}/${ext === "yaml" ? "clash" : "singbox"}`;
       const ini = renderIni({
         presetName: pName,
         preset,
@@ -966,7 +980,22 @@ async function main() {
         ghRepo: GH_REPO,
         ghRef: GH_REF,
       });
-      results.push({ pName, ext, label, ini });
+      // raw 版：内层 rule-provider 直连 raw，绕开 jsDelivr 的 12h 分支解析缓存
+      const rawIni =
+        rawRuleBase === ruleBase
+          ? ini
+          : renderIni({
+              presetName: pName,
+              preset,
+              ruleBase: rawRuleBase,
+              ext,
+              upstreamCommit,
+              builtAt,
+              ghOwner: GH_OWNER,
+              ghRepo: GH_REPO,
+              ghRef: GH_REF,
+            });
+      results.push({ pName, ext, label, ini, rawIni, ruleBase, rawRuleBase });
     }
   }
 
@@ -997,32 +1026,30 @@ async function main() {
   log("写出 ini:");
   for (const r of results) {
     // 通用目录：misub/（clash 形态）与 misub-remote/（显式格式）
+    // *-raw/ 为同内容、内层 rule-provider 直连 raw 的版本
     const targets = [];
     if (r.ext === "yaml") {
-      targets.push(`misub/${NEW_PREFIX}_${r.pName}_MiSub.ini`);
-      targets.push(`misub/${LEGACY_PREFIX}_${r.pName}_MiSub.ini`);
+      targets.push([`misub/${NEW_PREFIX}_${r.pName}_MiSub.ini`, r.ini]);
+      targets.push([`misub/${LEGACY_PREFIX}_${r.pName}_MiSub.ini`, r.ini]);
+      targets.push([`misub-raw/${NEW_PREFIX}_${r.pName}_MiSub.ini`, r.rawIni]);
+      targets.push([`misub-raw/${LEGACY_PREFIX}_${r.pName}_MiSub.ini`, r.rawIni]);
     }
-    targets.push(`misub-remote/${NEW_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
-    targets.push(`misub-remote/${LEGACY_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
+    targets.push([`misub-remote/${NEW_PREFIX}_${r.pName}_MiSub_${r.label}.ini`, r.ini]);
+    targets.push([`misub-remote/${LEGACY_PREFIX}_${r.pName}_MiSub_${r.label}.ini`, r.ini]);
+    targets.push([`misub-remote-raw/${NEW_PREFIX}_${r.pName}_MiSub_${r.label}.ini`, r.rawIni]);
+    targets.push([`misub-remote-raw/${LEGACY_PREFIX}_${r.pName}_MiSub_${r.label}.ini`, r.rawIni]);
 
-    for (const rel of targets) {
+    for (const [rel, content] of targets) {
       if (DIST) {
-        written.push(await write(rel, r.ini));
+        written.push(await write(rel, content));
       } else {
-        written.push({ rel, bytes: Buffer.byteLength(r.ini) });
+        written.push({ rel, bytes: Buffer.byteLength(content) });
       }
     }
 
     if (DO_VERIFY) {
-      ok =
-        verifyIni(
-          `remote-${r.label}`,
-          r.ini,
-          allSets,
-          r.pName,
-          `${RULE_BASE}/${r.ext === "yaml" ? "clash" : "singbox"}`,
-          PRESETS[r.pName]
-        ) && ok;
+      ok = verifyIni(`remote-${r.label}`, r.ini, allSets, r.pName, r.ruleBase, PRESETS[r.pName]) && ok;
+      ok = verifyIni(`raw-${r.label}`, r.rawIni, allSets, r.pName, r.rawRuleBase, PRESETS[r.pName]) && ok;
     }
   }
 
@@ -1058,6 +1085,11 @@ async function main() {
       mode: "whitelist",
       source: { repo: UPSTREAM_REPO, ref: UPSTREAM_REF, commit: upstreamCommit },
       ruleBase: RULE_BASE,
+      /**
+       * raw 通道。jsDelivr 的分支名→commit 解析缓存约 12h 且 push 后不可 purge，
+       * 追求「拿到的永远是最后一次构建」时改用 rawRuleBase 对应的 *-raw/ 产物。
+       */
+      rawRuleBase: RAW_RULE_BASE,
       presets: Object.fromEntries(
         presetNames.map((p) => [
           p,
@@ -1077,6 +1109,16 @@ async function main() {
                 generic: `misub/${LEGACY_PREFIX}_${p}_MiSub.ini`,
                 clash: `misub-remote/${LEGACY_PREFIX}_${p}_MiSub_clash.ini`,
                 singbox: `misub-remote/${LEGACY_PREFIX}_${p}_MiSub_singbox.ini`,
+              },
+            },
+            filesRaw: {
+              generic: `misub-raw/${NEW_PREFIX}_${p}_MiSub.ini`,
+              clash: `misub-remote-raw/${NEW_PREFIX}_${p}_MiSub_clash.ini`,
+              singbox: `misub-remote-raw/${NEW_PREFIX}_${p}_MiSub_singbox.ini`,
+              legacy: {
+                generic: `misub-raw/${LEGACY_PREFIX}_${p}_MiSub.ini`,
+                clash: `misub-remote-raw/${LEGACY_PREFIX}_${p}_MiSub_clash.ini`,
+                singbox: `misub-remote-raw/${LEGACY_PREFIX}_${p}_MiSub_singbox.ini`,
               },
             },
           },
