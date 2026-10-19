@@ -255,17 +255,20 @@ jobs:
           # purge 失败不阻断发布（12 小时后 CDN 会自愈），但必须显式留痕
           [ "$bad" -eq 0 ] || echo "::warning::有 $bad 个路径 purge 失败，最长 12 小时后自愈"
 
-      # 断言 CDN 吐出的内容与本地产物逐字节相同。
-      # 这一步是对「链接里的规则集是否最新」的直接回答 —— 客户端走的就是这条通道。
-      # 不用「文件里是否含 commit SHA」做判据：sing-box 的 JSON 没有注释头，
-      # 本来就写不进 commit，那样断言必然误报。
-      - name: Verify jsDelivr serves current build
+      # 观测 CDN 是否已切到本次构建。
+      #
+      # 注意：这一步**不能做硬门禁**。jsDelivr 对分支引用 `@dist` 的解析结果
+      # 是按边缘节点缓存的，purge 只能清文件，推不动「分支 → commit」这一层。
+      # 实测（2026-10-19）同一时刻 cdn 边缘解析到 #22 的 commit、fastly 解析到 #23，
+      # 而 raw 已是 #24；purge 全部路径后仍然如此，最长 12 小时后自然收敛。
+      # 所以这里只报告状态，不因 CDN 滞后让发布失败 —— 产物本身已由
+      # "Verify published files"（raw 通道）和一致性校验保证正确。
+      - name: Report jsDelivr propagation
         run: |
           set -euo pipefail
           BASE="https://cdn.jsdelivr.net/gh/${{ github.repository }}@dist"
-          # purge 后给边缘节点一点传播时间
           sleep 30
-          fail=0
+          stale=0
           for p in \
             "rules/clash/reject.yaml" \
             "rules/clash/agg-ad.yaml" \
@@ -274,22 +277,26 @@ jobs:
             "manifest.json" ; do
             WANT=$(md5sum "$RUNNER_TEMP/dist-out/$p" | cut -d' ' -f1)
             GOT=""
-            for attempt in 1 2 3 4 5; do
+            for attempt in 1 2 3; do
               if curl -s -f -m 60 "$BASE/$p" -o "$RUNNER_TEMP/cdn.bin"; then
                 GOT=$(md5sum "$RUNNER_TEMP/cdn.bin" | cut -d' ' -f1)
                 [ "$GOT" = "$WANT" ] && break
               fi
-              sleep 15
+              sleep 10
             done
             if [ "$GOT" = "$WANT" ]; then
-              echo "OK   $p md5=$WANT"
+              echo "FRESH $p"
             else
-              echo "FAIL $p CDN=$GOT 期望=$WANT（CDN 仍是上一版）"
-              fail=1
+              echo "STALE $p（CDN 仍是旧构建，分支解析缓存导致，最长 12h 自愈）"
+              stale=$((stale+1))
             fi
             rm -f "$RUNNER_TEMP/cdn.bin"
           done
-          exit $fail
+          if [ "$stale" -eq 0 ]; then
+            echo "CDN 已全部切到本次构建"
+          else
+            echo "::warning::$stale/5 个路径的 CDN 仍是旧构建（jsDelivr 分支引用缓存，属预期行为）"
+          fi
 
       - name: Summary
         run: |

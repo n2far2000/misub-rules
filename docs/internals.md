@@ -259,15 +259,24 @@ node scripts/check-links.mjs --owner <owner> --repo misub-rules
 - **没有跑真的 mihomo / sing-box 内核。** 规则文件的合法性是用 js-yaml 解析 + 规则类型
   白名单校验来近似的，不等于内核真的能加载。改动规则集格式后，务必至少用一个真实客户端
   导入一次。
-- **jsDelivr 分支缓存 12 小时，且已由 CI 自动 purge。**
-  推送后 `raw` 立刻是新版；CDN 走的是「分支引用 → commit」的解析缓存
-  （`Cache-Control: public, max-age=604800, s-maxage=43200`），
-  未 purge 时最多 12 小时内仍可能吐回上一个 commit 的文件 ——
-  **客户端看到「规则集还是旧版」绝大多数是这一层**，不是产物没更新。
-  workflow 的 `Purge jsDelivr cache` 步骤会对全部产物路径逐个 purge，
-  随后 `Verify jsDelivr serves current commit` 断言 `rules/clash/reject.yaml`、
-  `rules/clash/agg-ad.yaml`、`rules/singbox/reject.json`、`manifest.json`
-  里确实出现当前上游 commit，否则 job 失败。
+- **jsDelivr 分支引用有两层缓存，只有一层可清。**
+  这是本项目最容易误判的一点，实测结论（2026-10-19）：
+
+  | 层 | 对象 | 时长 | purge 是否有效 |
+  |---|---|---|---|
+  | 分支解析 | `@dist` → 具体 commit | 最长 12h | **无效** |
+  | 边缘文件 | 具体 commit 下的路径 | `s-maxage=43200` | 有效（几十秒） |
+
+  实测证据：同一时刻 `cdn.jsdelivr.net` 解析到 #22 的 commit、`fastly.jsdelivr.net`
+  解析到 #23，而 `raw` 已是 #24；对全部 54 个路径 purge（返回 200 / providers CF+FY
+  both true）后，`manifest.json` 在前者上仍返回 #22 的内容，加随机 query 串也绕不过。
+
+  → **结论：客户端经 jsDelivr 拿到的内容，最长可能滞后 12 小时，无法强制刷新。**
+  workflow 里的 `Purge jsDelivr cache` 与 `Report jsDelivr propagation`
+  只做「尽快收敛 + 留痕」，后者**刻意不做硬门禁**（否则每次发布都会误红）。
+  正确性由 raw 通道的 `Verify published files` 与幂等重建保证。
+
+  purge 完别立刻测 —— 测试请求会自我回填，静置约 60 秒后单次实测才准。
   手动 purge：`https://purge.jsdelivr.net/gh/<owner>/<repo>@dist/<路径>`（GET 或 POST 均可，无需鉴权）。
   批量：
 

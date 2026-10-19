@@ -386,23 +386,35 @@ CI 在发布前会用同一份缓存离线重建第二份产物，再用 `check-
 
 **更新了，但客户端拿到的规则集还是旧的？**
 
-这是 jsDelivr 的缓存行为，不是产物没更新。分两层：
+这是缓存问题，分三层，从外到内排查：
 
-1. **CDN 层**：jsDelivr 对「分支引用」`@dist` 的解析结果缓存 12 小时
-   （响应头 `Cache-Control: public, max-age=604800, s-maxage=43200`）。
-   发布后部分边缘节点仍可能解析到上一个 commit，于是吐回旧文件。
-   本项目在每次发布后**自动 purge 全部产物路径**，并断言 CDN 已含当前上游 commit
-   —— 正常情况滞后只有几十秒。若你仍看到旧内容，可手动触发一次
-   `https://purge.jsdelivr.net/gh/n2far2000/misub-rules@dist/<文件路径>`。
-2. **客户端层**：mihomo 把规则集落盘在 `ruleset/`，按 `interval: 86400`（24 小时）
-   才重新请求，且带条件请求、内容没变就沿用本地文件。
-   想立即生效：在客户端里「更新订阅」并清除规则集缓存，或删除 `ruleset/` 目录后重启。
+| 层 | 缓存时长 | 能不能立刻清 |
+|---|---|---|
+| jsDelivr「分支 → commit」解析 | **最长 12 小时** | **不能**（purge 无效，见下） |
+| jsDelivr 边缘文件缓存 | 12 小时 | 能，purge 即可 |
+| 客户端本地 `ruleset/` | `interval: 86400`，24 小时 | 能，清缓存 / 删目录 |
 
-怎么判断是哪种：直接打开
-`https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/rules/clash/private.yaml`，
-看第 3 行 `# 上游 commit:` 的值，与
-[manifest.json](https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/manifest.json)
-里的 `source.commit` 比对。两者一致 → CDN 已是新版，问题在客户端缓存。
+**关键限制**：链接用的是分支引用 `@dist`。jsDelivr 会把「`dist` 当前指向哪个 commit」
+按边缘节点缓存，实测同一时刻 `cdn.jsdelivr.net` 解析到前一次构建、`fastly` 解析到再前一次，
+而 `raw` 已是最新；`purge.jsdelivr.net` 只清文件缓存，**推不动这一层**，
+只能等它自然过期（最长 12 小时）。所以发布后最长 12 小时内，
+部分地区通过 jsDelivr 拿到的仍可能是上一版 —— 这是分支引用的固有代价，
+不是产物没更新（`raw.githubusercontent.com` 上永远是最新的）。
+
+想立刻确认线上到底是什么版本：
+
+```bash
+# 权威：raw 通道，永远最新
+curl -s https://raw.githubusercontent.com/n2far2000/misub-rules/dist/manifest.json | grep generatedAt
+# 你实际走的 CDN 通道
+curl -s https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/manifest.json | grep generatedAt
+```
+
+两者 `generatedAt` 不一致 → 还在 CDN 传播期，等或直接改用 raw 链接。
+一致但仍看到旧规则 → 问题在客户端（清 `ruleset/` 目录后重启，或换 mihomo 内核客户端重下）。
+
+**客户端层**：mihomo 把规则集落盘在 `ruleset/`，按 `interval: 86400` 才重新请求，
+且带条件请求、内容没变就沿用本地文件。想立即生效只能清本地缓存。
 
 **`SubBoost_*` 链接还能用吗？**
 
