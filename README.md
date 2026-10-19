@@ -473,6 +473,7 @@ scripts/check-consistency.mjs      产物一致性：两次构建逐文件比对
 scripts/check-links.mjs            全量链接体检：枚举两分支所有文件 × 三通道实测
 Update-MiSub-Rules.bat             Windows 本地模式启动器
 docs/internals.md                  源码级约束与设计依据（维护者参考）
+docs/perf-baseline-2026-10-19.md   客户端侧实测基线：下载通道 / reload / 峰值内存
 docs/plan-aggregation-and-distribution.md  聚合方案与分发端选型（设计稿）
 push.sh                            首次推送到 GitHub 的脚本
 LICENSE                            AGPL-3.0 全文
