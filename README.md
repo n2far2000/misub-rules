@@ -134,6 +134,39 @@ node scripts/loyalsoldier2misub.mjs --out-dir output --all-presets --verify
 
 > jsDelivr 对**分支引用**的缓存约 12 小时，产物更新后最长半天全网生效。
 
+### 加速通道（刷新订阅卡顿的解药）
+
+客户端拉 `rule-provider` **默认走 DIRECT**，不跟随你在客户端里设置的代理。
+所以哪怕你挂着梯子，刷新订阅时这 12 MB 规则集仍在裸连 jsDelivr。
+实测（江西电信）四表合计：**jsDelivr 10–12.6 秒，冷缓存 50 秒**。
+
+`misub-fast/` 与 `misub-remote-fast/` 是**内容逐字节相同、只换了内层规则集域名**的一套产物。
+把主链接里的 `misub/` 换成 `misub-fast/`、`misub-remote/` 换成 `misub-remote-fast/` 即可：
+
+| 预设 / 内核 | 加速版链接 |
+|---|---|
+| 聚合版（推荐） | `https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/misub-fast/Loyalsoldier_Agg4_MiSub.ini` |
+| 聚合版 · Clash | `https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/misub-remote-fast/Loyalsoldier_Agg4_MiSub_clash.ini` |
+| 聚合版 · sing-box | `https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/misub-remote-fast/Loyalsoldier_Agg4_MiSub_singbox.ini` |
+| 完整版 | `...@dist/misub-fast/Loyalsoldier_Full_MiSub.ini` |
+
+实测四表合计耗时（三轮）：
+
+| 通道 | 第 1 轮 | 第 2 轮 | 第 3 轮 |
+|---|---|---|---|
+| `gh-proxy.com`（加速版用） | 3.4 s | 2.8 s | 4.1 s |
+| `cdn.jsdelivr.net`（主链接用） | 10.1 s | 12.6 s | 12.6 s |
+
+**为什么不用 raw 直链**：MiSub 的 `pinRemoteRuleUrl` 会把 host 为
+`raw.githubusercontent.com` 的规则集 URL **强制改写回 jsDelivr**。
+写裸 raw 不仅不加速，还会被静默换掉——这也是之前那版 raw 通道实测无改善的原因。
+加速版用的是 `gh-proxy.com/https://raw.githubusercontent.com/...` 这种「代理域名 + raw 路径」形式，
+host 不是 `raw.githubusercontent.com`，MiSub 会原样透传。
+
+**代价**：`gh-proxy.com` 是第三方公益反代，可用性不由本项目保证；内容已在 CI 中逐文件
+md5 比对源站（2026-10-19 四个聚合表全部一致）。如果哪天它不可用，换回主链接即可，
+两套产物的规则内容完全一样。
+
 ## 四档预设
 
 | 预设 | 规则集数 | 策略组 | 条目 | 说明 |

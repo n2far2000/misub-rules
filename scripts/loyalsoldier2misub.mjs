@@ -62,6 +62,30 @@ const GH_REF = arg("gh-ref", "dist");
 const CDN_BASE = String(arg("cdn", "https://cdn.jsdelivr.net/gh")).replace(/\/$/, "");
 const RULE_BASE = `${CDN_BASE}/${GH_OWNER}/${GH_REPO}@${GH_REF}/rules`;
 
+/**
+ * 加速通道（可选产物，目录加 `-fast` 后缀）。
+ *
+ * 动机：mihomo 拉 rule-provider 默认走 DIRECT，不跟随客户端代理设置。
+ * 实测（2026-10-19，江西电信直连）四表合计耗时：
+ *   gh-proxy.com        2.8 / 3.4 / 4.1 s（三轮）
+ *   cdn.jsdelivr.net   10.1 / 12.6 / 12.6 s（含冷缓存那次 50 s）
+ * 内容已逐个 md5 校验与源站一致。
+ *
+ * 关键约束：MiSub 的 pinRemoteRuleUrl 只对 host 为 raw.githubusercontent.com
+ * 的 URL 做镜像改写（改写成 jsDelivr），其它 host 原样透传。所以
+ *   - 这里的 host 是代理域名 → 透传，加速生效
+ *   - 若直接写 raw 直链 → 会被 MiSub 改回 jsDelivr，加速失效
+ * 这也是此前 raw 通道实测无改善的原因之一。
+ */
+const ALT_CDN = String(arg("alt-cdn", "https://gh-proxy.com/https://raw.githubusercontent.com")).replace(/\/$/, "");
+const ALT_RULE_BASE = `${ALT_CDN}/${GH_OWNER}/${GH_REPO}/${GH_REF}/rules`;
+
+/** 产物通道：dir 为空 = 主通道（现有路径不变），否则追加目录后缀 */
+const CHANNELS = [
+  { key: "main", dir: "", ruleBase: RULE_BASE, title: "jsDelivr" },
+  { key: "fast", dir: "-fast", ruleBase: ALT_RULE_BASE, title: "gh-proxy" },
+];
+
 const SINGLE_PRESET = arg("preset", null);
 
 /**
@@ -954,19 +978,21 @@ async function main() {
     const preset = PRESETS[pName];
     for (const ext of ["yaml", "json"]) {
       const label = ext === "yaml" ? "clash" : "singbox";
-      const ruleBase = `${RULE_BASE}/${ext === "yaml" ? "clash" : "singbox"}`;
-      const ini = renderIni({
-        presetName: pName,
-        preset,
-        ruleBase,
-        ext,
-        upstreamCommit,
-        builtAt,
-        ghOwner: GH_OWNER,
-        ghRepo: GH_REPO,
-        ghRef: GH_REF,
-      });
-      results.push({ pName, ext, label, ini });
+      for (const ch of CHANNELS) {
+        const ruleBase = `${ch.ruleBase}/${ext === "yaml" ? "clash" : "singbox"}`;
+        const ini = renderIni({
+          presetName: pName,
+          preset,
+          ruleBase,
+          ext,
+          upstreamCommit,
+          builtAt,
+          ghOwner: GH_OWNER,
+          ghRepo: GH_REPO,
+          ghRef: GH_REF,
+        });
+        results.push({ pName, ext, label, ini, ch });
+      }
     }
   }
 
@@ -997,13 +1023,15 @@ async function main() {
   log("写出 ini:");
   for (const r of results) {
     // 通用目录：misub/（clash 形态）与 misub-remote/（显式格式）
+    // 加速通道整体移到 misub-fast/ 与 misub-remote-fast/，主通道路径一字不改。
+    const d = r.ch.dir;
     const targets = [];
     if (r.ext === "yaml") {
-      targets.push(`misub/${NEW_PREFIX}_${r.pName}_MiSub.ini`);
-      targets.push(`misub/${LEGACY_PREFIX}_${r.pName}_MiSub.ini`);
+      targets.push(`misub${d}/${NEW_PREFIX}_${r.pName}_MiSub.ini`);
+      targets.push(`misub${d}/${LEGACY_PREFIX}_${r.pName}_MiSub.ini`);
     }
-    targets.push(`misub-remote/${NEW_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
-    targets.push(`misub-remote/${LEGACY_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
+    targets.push(`misub-remote${d}/${NEW_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
+    targets.push(`misub-remote${d}/${LEGACY_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
 
     for (const rel of targets) {
       if (DIST) {
@@ -1016,11 +1044,11 @@ async function main() {
     if (DO_VERIFY) {
       ok =
         verifyIni(
-          `remote-${r.label}`,
+          `${r.ch.key}-${r.label}`,
           r.ini,
           allSets,
           r.pName,
-          `${RULE_BASE}/${r.ext === "yaml" ? "clash" : "singbox"}`,
+          `${r.ch.ruleBase}/${r.ext === "yaml" ? "clash" : "singbox"}`,
           PRESETS[r.pName]
         ) && ok;
     }
@@ -1042,7 +1070,7 @@ async function main() {
 
   if (!DIST && !OUT_FILE) {
     for (const r of results) {
-      const p = join(OUT_DIR, `misub-remote/${NEW_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
+      const p = join(OUT_DIR, `misub-remote${r.ch.dir}/${NEW_PREFIX}_${r.pName}_MiSub_${r.label}.ini`);
       await mkdir(dirname(p), { recursive: true });
       await writeFile(p, r.ini, "utf8");
     }
@@ -1052,12 +1080,35 @@ async function main() {
 
   // manifest / upstream
   if (DIST) {
+    /** 产物路径表；dir 为空 = 主通道，"-fast" = 加速通道 */
+    const filePaths = (p, dir) => ({
+      generic: `misub${dir}/${NEW_PREFIX}_${p}_MiSub.ini`,
+      clash: `misub-remote${dir}/${NEW_PREFIX}_${p}_MiSub_clash.ini`,
+      singbox: `misub-remote${dir}/${NEW_PREFIX}_${p}_MiSub_singbox.ini`,
+      legacy: {
+        generic: `misub${dir}/${LEGACY_PREFIX}_${p}_MiSub.ini`,
+        clash: `misub-remote${dir}/${LEGACY_PREFIX}_${p}_MiSub_clash.ini`,
+        singbox: `misub-remote${dir}/${LEGACY_PREFIX}_${p}_MiSub_singbox.ini`,
+      },
+    });
+
     const manifest = {
       generatedAt: builtAt,
       generator: "loyalsoldier2misub.mjs",
       mode: "whitelist",
       source: { repo: UPSTREAM_REPO, ref: UPSTREAM_REF, commit: upstreamCommit },
       ruleBase: RULE_BASE,
+      /**
+       * 加速通道的内层 base。gh-proxy 把 raw 路径整体接在域名后面，
+       * 与主通道的 @ref 语法不同，所以单独列出而不是由 ruleBase 推导。
+       */
+      altRuleBase: ALT_RULE_BASE,
+      channels: Object.fromEntries(
+        CHANNELS.map((c) => [
+          c.key,
+          { title: c.title, dir: c.dir, ruleBase: c.ruleBase },
+        ])
+      ),
       presets: Object.fromEntries(
         presetNames.map((p) => [
           p,
@@ -1069,16 +1120,8 @@ async function main() {
             entries: PRESETS[p].rules
               .filter((r) => r.set)
               .reduce((n, r) => n + (allSets[r.set]?.count || 0), 0),
-            files: {
-              generic: `misub/${NEW_PREFIX}_${p}_MiSub.ini`,
-              clash: `misub-remote/${NEW_PREFIX}_${p}_MiSub_clash.ini`,
-              singbox: `misub-remote/${NEW_PREFIX}_${p}_MiSub_singbox.ini`,
-              legacy: {
-                generic: `misub/${LEGACY_PREFIX}_${p}_MiSub.ini`,
-                clash: `misub-remote/${LEGACY_PREFIX}_${p}_MiSub_clash.ini`,
-                singbox: `misub-remote/${LEGACY_PREFIX}_${p}_MiSub_singbox.ini`,
-              },
-            },
+            files: filePaths(p, ""),
+            filesFast: filePaths(p, "-fast"),
           },
         ])
       ),

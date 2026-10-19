@@ -120,6 +120,29 @@ resolveGroupFilters → dedupeGroupsByName → pruneInvalidMembers → pruneEmpt
   所以每个组都必须非空：本项目的组都至少带 `DIRECT` / `REJECT` 字面成员。
 - `.*` 被解析成 **filter** 而非成员，随后由 `resolveGroupFilters` 展开成实际节点名。
 
+### 1.5 规则集 URL 的 `raw.githubusercontent.com` 会被强制改写成 jsDelivr
+
+`functions/modules/subscription/builtin-rules-provider.js:500` `pinRemoteRuleUrl()`：
+
+```js
+if (!/raw\.githubusercontent\.com$/i.test(url.hostname)) return raw;   // 其它 host 原样透传
+...
+if (mirror) {
+    return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${ref}/${rest.join('/')}`;
+}
+return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${rest.join('/')}`;
+```
+
+- **只有 host 恰为 `raw.githubusercontent.com` 的 URL 会被处理**，默认 `mirror = true`
+  时改写成 jsDelivr。`ini-template-parser.js:100` 对每个远程 `ruleset=` 都调它。
+- 推论：**在 ini 里写裸 raw 直链不会生效**，MiSub 会在渲染时静默换回 jsDelivr。
+  想用第三方加速，必须让 host 变成代理域名本身，例如
+  `https://gh-proxy.com/https://raw.githubusercontent.com/...` —— 此时
+  `url.hostname` 是 `gh-proxy.com`，走 `return raw` 分支原样透传。
+- 这条约束是 2026-10-19「raw 通道实测无改善」的真正原因：客户端拿到的仍是 jsDelivr 地址。
+  现由 `--alt-cdn`（默认 `gh-proxy.com`）产出 `misub-fast/`、`misub-remote-fast/` 两套加速产物，
+  CI 里断言内层 `gh-proxy.com` 引用恰为 4 条、裸 raw 引用为 0 条。
+
 ---
 
 ## 2. mihomo 侧语义（匹配端）

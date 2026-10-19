@@ -166,6 +166,9 @@ jobs:
             "misub-remote/Loyalsoldier_Agg4_MiSub_singbox.ini"
             "misub-remote/SubBoost_Full_MiSub_clash.ini"
             "misub-remote/SubBoost_Full_MiSub_singbox.ini"
+            "misub-fast/Loyalsoldier_Agg4_MiSub.ini"
+            "misub-remote-fast/Loyalsoldier_Agg4_MiSub_clash.ini"
+            "misub-remote-fast/Loyalsoldier_Agg4_MiSub_singbox.ini"
             "rules/clash/reject.yaml"
             "rules/clash/direct.yaml"
             "rules/clash/agg-private.yaml"
@@ -208,6 +211,20 @@ jobs:
           [ "$PROVIDERS" = "4" ] || { echo "FAIL: Agg4 聚合引用应为 4，实际 $PROVIDERS"; fail=1; }
           [ "$FINAL" = "1" ] || { echo "FAIL: Agg4 应恰有 1 条 FINAL，实际 $FINAL"; fail=1; }
           rm -f "$TMP"
+
+          # 加速通道断言：内层 URL 必须指向 gh-proxy，且不能出现裸 raw 直链
+          # （裸 raw 会被 MiSub 的 pinRemoteRuleUrl 改写回 jsDelivr，加速失效）
+          TMP=$(mktemp)
+          fetch_retry "$BASE/misub-remote-fast/Loyalsoldier_Agg4_MiSub_clash.ini" "$TMP" > /dev/null \
+            || { echo "FAIL: fast 版 ini 不可读"; exit 1; }
+          FAST_PROXY=$(grep -c '^ruleset=.*https://gh-proxy.com/' "$TMP" || true)
+          FAST_RAW=$(grep -c '^ruleset=.*https://raw\.githubusercontent\.com/' "$TMP" || true)
+          FAST_SP=$(grep -c '^ruleset=.*rules/clash/agg-' "$TMP" || true)
+          echo "fast: gh-proxy 引用 $FAST_PROXY / 裸 raw $FAST_RAW / clash 聚合 $FAST_SP"
+          [ "$FAST_PROXY" = "4" ] || { echo "FAIL: fast 版应有 4 条 gh-proxy 引用，实际 $FAST_PROXY"; fail=1; }
+          [ "$FAST_RAW" = "0" ] || { echo "FAIL: fast 版不应出现裸 raw 直链，实际 $FAST_RAW"; fail=1; }
+          [ "$FAST_SP" = "4" ] || { echo "FAIL: fast 版 clash 聚合引用应为 4，实际 $FAST_SP"; fail=1; }
+          rm -f "$TMP"
           exit $fail
 
       # ---------------------------------------------------------------
@@ -227,8 +244,11 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://purge.jsdelivr.net/gh/${{ github.repository }}@dist"
+          # 加速通道产物（misub-fast/、misub-remote-fast/）里的内层 URL 指向
+          # gh-proxy，不经过 jsDelivr，purge 它们必然是 404，直接排除。
           find "$RUNNER_TEMP/dist-out" -type f \
-            | sed "s#^$RUNNER_TEMP/dist-out/##" | sort > "$RUNNER_TEMP/purge.txt"
+            | sed "s#^$RUNNER_TEMP/dist-out/##" | sort \
+            | grep -vE '^misub(-remote)?-fast/' > "$RUNNER_TEMP/purge.txt"
           TOTAL=$(wc -l < "$RUNNER_TEMP/purge.txt")
           echo "待 purge: $TOTAL 个路径"
           ok=0; bad=0
