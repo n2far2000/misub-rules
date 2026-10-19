@@ -230,7 +230,6 @@ async function main() {
   // 6.5 README 文档化链接逐条验证（含镜像前缀）
   console.log(`\n--- README 文档链接逐条验证 ---`);
   const DIST = `gh/${OWNER}/${REPO}@dist`;
-  const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/dist`;
   const documented = [
     ['主链接·完整版', `https://cdn.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
     ['主链接·标准版', `https://cdn.jsdelivr.net/${DIST}/misub/Loyalsoldier_Standard_MiSub.ini`],
@@ -255,10 +254,6 @@ async function main() {
     ['镜像·fastly', `https://fastly.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
     ['镜像·testingcf', `https://testingcf.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
     ['镜像·gcore', `https://gcore.jsdelivr.net/${DIST}/misub/Loyalsoldier_Full_MiSub.ini`],
-    ['raw·聚合版模板', `${RAW}/misub-raw/Loyalsoldier_Agg4_MiSub.ini`],
-    ['raw·聚合版Clash', `${RAW}/misub-remote-raw/Loyalsoldier_Agg4_MiSub_clash.ini`],
-    ['raw·聚合版singbox', `${RAW}/misub-remote-raw/Loyalsoldier_Agg4_MiSub_singbox.ini`],
-    ['raw·聚合规则集ad', `${RAW}/rules/clash/agg-direct.yaml`],
     ['元信息·manifest', `https://cdn.jsdelivr.net/${DIST}/manifest.json`],
     ['元信息·upstream', `https://cdn.jsdelivr.net/${DIST}/upstream.json`],
     ['徽章 badge', `https://github.com/${OWNER}/${REPO}/actions/workflows/update.yml/badge.svg`],

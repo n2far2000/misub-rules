@@ -129,7 +129,7 @@ function structureOf(tree) {
     aggregateSources: Object.fromEntries(
       Object.entries(aggregates).map(([k, v]) => [k, (v.sources || []).join("+")])
     ),
-    files: [...tree.keys()].filter((f) => /^misub(-\w+)?\//.test(f)).sort(),
+    files: [...tree.keys()].filter((f) => /^misub(-remote)?\//.test(f)).sort(),
     aggregateFiles: [...tree.keys()].filter((f) => /^rules\/(clash|singbox)\/agg-/.test(f)).sort(),
   };
 }
