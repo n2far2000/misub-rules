@@ -1,0 +1,316 @@
+{
+  "generatedAt": "2026-10-30T23:46:52.525Z",
+  "generator": "loyalsoldier2misub.mjs",
+  "mode": "whitelist",
+  "source": {
+    "repo": "Loyalsoldier/clash-rules",
+    "ref": "release",
+    "commit": "611f7e9db13b5c824233ed7451abdf867fc08a41"
+  },
+  "ruleBase": "https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/rules",
+  "altRuleBase": "https://gh-proxy.com/https://raw.githubusercontent.com/n2far2000/misub-rules/dist/rules",
+  "channels": {
+    "main": {
+      "title": "jsDelivr",
+      "dir": "",
+      "ruleBase": "https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist/rules"
+    },
+    "fast": {
+      "title": "gh-proxy",
+      "dir": "-fast",
+      "ruleBase": "https://gh-proxy.com/https://raw.githubusercontent.com/n2far2000/misub-rules/dist/rules"
+    }
+  },
+  "presets": {
+    "Full": {
+      "title": "完整白名单",
+      "desc": "覆盖官方推荐白名单的全部 10 张表，含 iCloud / Apple / Google / Telegram 细分",
+      "sets": [
+        "private",
+        "reject",
+        "icloud",
+        "apple",
+        "google",
+        "proxy",
+        "direct",
+        "lancidr",
+        "cncidr",
+        "telegramcidr"
+      ],
+      "providers": 10,
+      "entries": 342305,
+      "files": {
+        "generic": "misub/Loyalsoldier_Full_MiSub.ini",
+        "clash": "misub-remote/Loyalsoldier_Full_MiSub_clash.ini",
+        "singbox": "misub-remote/Loyalsoldier_Full_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub/SubBoost_Full_MiSub.ini",
+          "clash": "misub-remote/SubBoost_Full_MiSub_clash.ini",
+          "singbox": "misub-remote/SubBoost_Full_MiSub_singbox.ini"
+        }
+      },
+      "filesFast": {
+        "generic": "misub-fast/Loyalsoldier_Full_MiSub.ini",
+        "clash": "misub-remote-fast/Loyalsoldier_Full_MiSub_clash.ini",
+        "singbox": "misub-remote-fast/Loyalsoldier_Full_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub-fast/SubBoost_Full_MiSub.ini",
+          "clash": "misub-remote-fast/SubBoost_Full_MiSub_clash.ini",
+          "singbox": "misub-remote-fast/SubBoost_Full_MiSub_singbox.ini"
+        }
+      }
+    },
+    "Standard": {
+      "title": "标准白名单",
+      "desc": "去掉 iCloud / Apple / Google / Telegram 细分，保留两张 IP 表",
+      "sets": [
+        "private",
+        "reject",
+        "proxy",
+        "direct",
+        "lancidr",
+        "cncidr"
+      ],
+      "providers": 6,
+      "entries": 341964,
+      "files": {
+        "generic": "misub/Loyalsoldier_Standard_MiSub.ini",
+        "clash": "misub-remote/Loyalsoldier_Standard_MiSub_clash.ini",
+        "singbox": "misub-remote/Loyalsoldier_Standard_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub/SubBoost_Standard_MiSub.ini",
+          "clash": "misub-remote/SubBoost_Standard_MiSub_clash.ini",
+          "singbox": "misub-remote/SubBoost_Standard_MiSub_singbox.ini"
+        }
+      },
+      "filesFast": {
+        "generic": "misub-fast/Loyalsoldier_Standard_MiSub.ini",
+        "clash": "misub-remote-fast/Loyalsoldier_Standard_MiSub_clash.ini",
+        "singbox": "misub-remote-fast/Loyalsoldier_Standard_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub-fast/SubBoost_Standard_MiSub.ini",
+          "clash": "misub-remote-fast/SubBoost_Standard_MiSub_clash.ini",
+          "singbox": "misub-remote-fast/SubBoost_Standard_MiSub_singbox.ini"
+        }
+      }
+    },
+    "Minimal": {
+      "title": "极简白名单",
+      "desc": "只保留 4 张域名表，不含任何 IP 表，国内直连全靠 GEOIP,CN 兜底",
+      "sets": [
+        "private",
+        "reject",
+        "proxy",
+        "direct"
+      ],
+      "providers": 4,
+      "entries": 331924,
+      "files": {
+        "generic": "misub/Loyalsoldier_Minimal_MiSub.ini",
+        "clash": "misub-remote/Loyalsoldier_Minimal_MiSub_clash.ini",
+        "singbox": "misub-remote/Loyalsoldier_Minimal_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub/SubBoost_Minimal_MiSub.ini",
+          "clash": "misub-remote/SubBoost_Minimal_MiSub_clash.ini",
+          "singbox": "misub-remote/SubBoost_Minimal_MiSub_singbox.ini"
+        }
+      },
+      "filesFast": {
+        "generic": "misub-fast/Loyalsoldier_Minimal_MiSub.ini",
+        "clash": "misub-remote-fast/Loyalsoldier_Minimal_MiSub_clash.ini",
+        "singbox": "misub-remote-fast/Loyalsoldier_Minimal_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub-fast/SubBoost_Minimal_MiSub.ini",
+          "clash": "misub-remote-fast/SubBoost_Minimal_MiSub_clash.ini",
+          "singbox": "misub-remote-fast/SubBoost_Minimal_MiSub_singbox.ini"
+        }
+      }
+    },
+    "Agg4": {
+      "title": "聚合四表",
+      "desc": "10 张表按策略组合并为 4 个文件，启动请求数 10 -> 4；细分开关合并进直连/代理",
+      "sets": [
+        "agg-private",
+        "agg-ad",
+        "agg-proxy",
+        "agg-direct"
+      ],
+      "providers": 4,
+      "entries": 342301,
+      "files": {
+        "generic": "misub/Loyalsoldier_Agg4_MiSub.ini",
+        "clash": "misub-remote/Loyalsoldier_Agg4_MiSub_clash.ini",
+        "singbox": "misub-remote/Loyalsoldier_Agg4_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub/SubBoost_Agg4_MiSub.ini",
+          "clash": "misub-remote/SubBoost_Agg4_MiSub_clash.ini",
+          "singbox": "misub-remote/SubBoost_Agg4_MiSub_singbox.ini"
+        }
+      },
+      "filesFast": {
+        "generic": "misub-fast/Loyalsoldier_Agg4_MiSub.ini",
+        "clash": "misub-remote-fast/Loyalsoldier_Agg4_MiSub_clash.ini",
+        "singbox": "misub-remote-fast/Loyalsoldier_Agg4_MiSub_singbox.ini",
+        "legacy": {
+          "generic": "misub-fast/SubBoost_Agg4_MiSub.ini",
+          "clash": "misub-remote-fast/SubBoost_Agg4_MiSub_clash.ini",
+          "singbox": "misub-remote-fast/SubBoost_Agg4_MiSub_singbox.ini"
+        }
+      }
+    }
+  },
+  "ruleSets": {
+    "reject": {
+      "title": "广告与跟踪域名",
+      "kind": "domain",
+      "count": 194282,
+      "clash": "rules/clash/reject.yaml",
+      "singbox": "rules/singbox/reject.json"
+    },
+    "private": {
+      "title": "私有网络域名",
+      "kind": "domain",
+      "count": 132,
+      "clash": "rules/clash/private.yaml",
+      "singbox": "rules/singbox/private.json"
+    },
+    "icloud": {
+      "title": "iCloud 域名",
+      "kind": "domain",
+      "count": 52,
+      "clash": "rules/clash/icloud.yaml",
+      "singbox": "rules/singbox/icloud.json"
+    },
+    "apple": {
+      "title": "Apple 直连域名",
+      "kind": "domain",
+      "count": 165,
+      "clash": "rules/clash/apple.yaml",
+      "singbox": "rules/singbox/apple.json"
+    },
+    "google": {
+      "title": "Google 直连域名",
+      "kind": "domain",
+      "count": 112,
+      "clash": "rules/clash/google.yaml",
+      "singbox": "rules/singbox/google.json"
+    },
+    "proxy": {
+      "title": "代理域名",
+      "kind": "domain",
+      "count": 27324,
+      "clash": "rules/clash/proxy.yaml",
+      "singbox": "rules/singbox/proxy.json"
+    },
+    "direct": {
+      "title": "直连域名",
+      "kind": "domain",
+      "count": 110186,
+      "clash": "rules/clash/direct.yaml",
+      "singbox": "rules/singbox/direct.json"
+    },
+    "lancidr": {
+      "title": "局域网与保留 IP",
+      "kind": "ip",
+      "count": 28,
+      "clash": "rules/clash/lancidr.yaml",
+      "singbox": "rules/singbox/lancidr.json"
+    },
+    "cncidr": {
+      "title": "中国大陆 IP",
+      "kind": "ip",
+      "count": 10012,
+      "clash": "rules/clash/cncidr.yaml",
+      "singbox": "rules/singbox/cncidr.json"
+    },
+    "telegramcidr": {
+      "title": "Telegram IP",
+      "kind": "ip",
+      "count": 12,
+      "clash": "rules/clash/telegramcidr.yaml",
+      "singbox": "rules/singbox/telegramcidr.json"
+    }
+  },
+  "aggregates": {
+    "agg-private": {
+      "title": "私有网络（聚合）",
+      "desc": "private 域名 + lancidr 保留网段，目标组 🏠 私有网络",
+      "sources": [
+        "private",
+        "lancidr"
+      ],
+      "count": 160,
+      "sourceSum": 160,
+      "deduped": 0,
+      "clash": "rules/clash/agg-private.yaml",
+      "singbox": "rules/singbox/agg-private.json"
+    },
+    "agg-ad": {
+      "title": "广告拦截（聚合）",
+      "desc": "reject，目标组 🛑 广告拦截",
+      "sources": [
+        "reject"
+      ],
+      "count": 194282,
+      "sourceSum": 194282,
+      "deduped": 0,
+      "clash": "rules/clash/agg-ad.yaml",
+      "singbox": "rules/singbox/agg-ad.json"
+    },
+    "agg-proxy": {
+      "title": "代理（聚合）",
+      "desc": "proxy 域名 + telegramcidr，目标组 🚀 节点选择",
+      "sources": [
+        "proxy",
+        "telegramcidr"
+      ],
+      "count": 27336,
+      "sourceSum": 27336,
+      "deduped": 0,
+      "clash": "rules/clash/agg-proxy.yaml",
+      "singbox": "rules/singbox/agg-proxy.json"
+    },
+    "agg-direct": {
+      "title": "全球直连（聚合）",
+      "desc": "direct + apple + icloud + google + cncidr，目标组 🎯 全球直连",
+      "sources": [
+        "direct",
+        "apple",
+        "icloud",
+        "google",
+        "cncidr"
+      ],
+      "count": 120523,
+      "sourceSum": 120527,
+      "deduped": 4,
+      "clash": "rules/clash/agg-direct.yaml",
+      "singbox": "rules/singbox/agg-direct.json"
+    }
+  },
+  "presetsSummary": {
+    "Full": {
+      "title": "完整白名单",
+      "providers": 10,
+      "groups": 10,
+      "entries": 342305
+    },
+    "Standard": {
+      "title": "标准白名单",
+      "providers": 6,
+      "groups": 6,
+      "entries": 341964
+    },
+    "Minimal": {
+      "title": "极简白名单",
+      "providers": 4,
+      "groups": 6,
+      "entries": 331924
+    },
+    "Agg4": {
+      "title": "聚合四表",
+      "providers": 4,
+      "groups": 6,
+      "entries": 342301
+    }
+  }
+}
