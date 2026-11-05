@@ -1,0 +1,13 @@
+# 生成产物只存在于 dist 分支，main 分支不提交
+dist/
+
+# 上游源码与 geodata 缓存
+.work/
+
+# 本地临时产物
+*.log
+SubBoost_*_MiSub.ini
+
+node_modules/
+.DS_Store
+Thumbs.db

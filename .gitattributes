@@ -1,0 +1,9 @@
+# 统一换行：仓库内一律 LF，Windows 批处理在检出时保持 CRLF
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制产物不要做文本规范化
+*.png binary
+*.jpg binary
+*.ico binary

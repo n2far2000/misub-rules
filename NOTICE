@@ -1,0 +1,47 @@
+misub-rules
+Copyright (C) 2026 n2far2000 <n2far2000@users.noreply.github.com>
+
+This project is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0-only). See LICENSE for the full text.
+
+---------------------------------------------------------------------------
+上游归属 / Upstream attribution
+---------------------------------------------------------------------------
+
+本项目的规则产物派生自以下开源项目。生成器不复制上游代码，而是读取上游的
+结构化定义（规则顺序、模块清单、默认开关）后重新生成配置，产物中的数据
+则直接来源于上游发布的规则集。
+
+1. SubBoost
+   https://github.com/SubBoost/subboost
+   许可: GNU Affero General Public License v3.0 (AGPL-3.0-only)
+   作用: 分流规则的模块定义、规则排序逻辑、代理组结构与预设启用清单。
+         scripts/subboost2misub.mjs 解析其 TypeScript 源码以获取这些信息。
+
+2. MetaCubeX meta-rules-dat
+   https://github.com/MetaCubeX/meta-rules-dat
+   许可: GNU General Public License v3.0 (GPL-3.0)
+   作用: dist/rules/ 下全部域名与 IP 规则集的数据来源（geosite / geoip 明文列表）。
+
+3. v2fly domain-list-community
+   https://github.com/v2fly/domain-list-community
+   许可: MIT License
+   作用: 部分 geosite 分类的原始域名数据。
+
+4. MiSub
+   https://github.com/imzyb/MiSub
+   许可: MIT License
+   作用: 目标消费格式（规则模板 ini、远程规则集引用）的规范来源。
+
+---------------------------------------------------------------------------
+许可说明
+---------------------------------------------------------------------------
+
+本项目采用 AGPL-3.0-only，与主要上游 SubBoost 保持一致的许可变体
+（only，而非 or-later），以确保许可兼容。
+
+由于 dist/ 产物同时包含 GPL-3.0 与 AGPL-3.0 来源的数据，而 AGPL-3.0
+与 GPL-3.0 相互兼容，因此以 AGPL-3.0 分发可以覆盖两者的要求。
+
+以上为项目维护者对许可的整理与说明，不构成法律意见。如需商用或再分发，
+请自行核实上游项目的当前许可条款。

@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 n2far2000 <n2far2000@users.noreply.github.com>
+
+name: Update SubBoost rules
+
+# 生成层：定时拉取 SubBoost 上游规则定义 + MetaCubeX geodata，
+# 重新生成 MiSub ini 模板与远程规则集，然后发布到 dist 分支。
+#
+# 为什么发布到独立的 dist 分支：
+#   产物合计约 8 MB，且规则内容每天都在变。若提交进 main 分支，
+#   一年下来仓库会膨胀到数 GB。dist 分支每次用「孤立提交 + 强制推送」重建，
+#   仓库体积恒定等于单次产物大小，同时推送本身也算仓库活动，
+#   可避免公共仓库连续 60 天无活动被自动禁用 schedule。
+
+on:
+  schedule:
+    # UTC 20:17 = 北京时间 04:17。刻意避开整点，GitHub 在整点负载最高、延迟最大。
+    - cron: "17 20 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_geodata_check:
+        description: 跳过 geodata 分类名核验（上游异常时用于兜底出包）
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-subboost-rules
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Generate dist
+        id: gen
+        env:
+          SKIP_GEO: ${{ inputs.skip_geodata_check }}
+        run: |
+          set -euo pipefail
+          ARGS=(
+            --dist "$RUNNER_TEMP/dist-out"
+            --all-presets
+            --gh-owner "${{ github.repository_owner }}"
+            --gh-repo "${{ github.event.repository.name }}"
+            --gh-ref dist
+            --verify
+          )
+          if [ "$SKIP_GEO" != "true" ]; then ARGS+=(--verify-geodata); fi
+          node scripts/subboost2misub.mjs "${ARGS[@]}"
+
+      - name: Read manifest
+        id: manifest
+        run: |
+          set -euo pipefail
+          M="$RUNNER_TEMP/dist-out/manifest.json"
+          echo "sha=$(jq -r '.upstream.subboostCommit // "unknown"' "$M")" >> "$GITHUB_OUTPUT"
+          echo "fingerprint=$(jq -r '.upstream.structureFingerprint' "$M")" >> "$GITHUB_OUTPUT"
+          echo "files=$(jq -r '.files | length' "$M")" >> "$GITHUB_OUTPUT"
+          echo "bytes=$(jq -r '[.files[].bytes] | add' "$M")" >> "$GITHUB_OUTPUT"
+          echo "full_rules=$(jq -r '.presets.full.rules' "$M")" >> "$GITHUB_OUTPUT"
+          echo "full_groups=$(jq -r '.presets.full.groups' "$M")" >> "$GITHUB_OUTPUT"
+          echo "runs=$(jq -r '.ruleSets.runs' "$M")" >> "$GITHUB_OUTPUT"
+
+      - name: Detect structural change
+        id: change
+        run: |
+          set -euo pipefail
+          NEW="${{ steps.manifest.outputs.fingerprint }}"
+          OLD=""
+          if git ls-remote --exit-code --heads origin dist >/dev/null 2>&1; then
+            git fetch --depth=1 origin dist
+            OLD=$(git show FETCH_HEAD:upstream.json 2>/dev/null | jq -r '.structureFingerprint' || echo "")
+          fi
+          if [ "$NEW" = "$OLD" ]; then
+            echo "structure_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "structure_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "旧指纹: ${OLD:-<无>}"
+          echo "新指纹: $NEW"
+
+      - name: Publish to dist branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_SHA: ${{ steps.manifest.outputs.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          PUB="$RUNNER_TEMP/publish"
+          rm -rf "$PUB" && mkdir -p "$PUB"
+          cd "$PUB"
+          git init -q -b dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp -r "$RUNNER_TEMP/dist-out/." .
+          git add -A
+          git commit -q -m "chore(rules): rebuild $(date -u +%Y-%m-%dT%H:%M:%SZ) upstream=${UPSTREAM_SHA}"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          git push --force origin dist
+
+      - name: Summary
+        run: |
+          {
+            echo "## SubBoost → MiSub 规则已更新"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 上游 commit | \`${{ steps.manifest.outputs.sha }}\` |"
+            echo "| 结构是否变化 | ${{ steps.change.outputs.structure_changed }} |"
+            echo "| 完整版规则 / 策略组 | ${{ steps.manifest.outputs.full_rules }} / ${{ steps.manifest.outputs.full_groups }} |"
+            echo "| 远程规则集段数 | ${{ steps.manifest.outputs.runs }} |"
+            echo "| 产物文件数 | ${{ steps.manifest.outputs.files }} |"
+            echo "| 产物体积 | $(echo "${{ steps.manifest.outputs.bytes }}" | awk '{printf "%.2f MB", $1/1048576}') |"
+            echo ""
+            echo "### 主链接"
+            echo ""
+            echo "\`\`\`"
+            echo "https://cdn.jsdelivr.net/gh/${{ github.repository }}@dist/misub/SubBoost_Full_MiSub.ini"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
