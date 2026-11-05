@@ -1097,6 +1097,43 @@ async function main() {
     // 若客户端开启 geo-auto-update 后原版 8 条规则也能正常下载，
     // 则说明根因是 geodata 陈旧，而不是规则设计。
     const entries = buildRulePlan({ modules, ruleOrder, enabled, defaults, experimentalCn });
+
+    // ── 本地补正 4：Play 下载 CDN 必须与 services.googleapis.cn 同向（2026-11-05）──
+    // 参考 https://github.com/vernesong/OpenClash/discussions/3131
+    //
+    // 机制：Google Play 先查 services.googleapis.cn（.cn 域名，落在 geosite:cn 里）
+    //   决定用哪个区域的 CDN，返回的下载地址形如
+    //     rr3---sn-xxxx.xn--ngstr-lra8j.com   （punycode，= ångströ.com）
+    //   **国内 CDN 会拒绝国外 IP 的访问。**
+    //
+    // 实测归属（MetaCubeX 明文列表 + 客户端 geodata 一致）：
+    //   services.googleapis.cn  → google ✅ / geolocation-!cn ❌ / cn ✅
+    //   xn--ngstr-lra8j.com     → google ✅ / geolocation-!cn ✅ / cn ❌
+    //
+    // 于是三个档位的处置出现分叉：
+    //   Full / Standard：两条都被 GEOSITE,google 接走 → 都走代理 → 一致 → 正常
+    //   Minimal        ：services.googleapis.cn 掉到 GEOSITE,cn → 直连
+    //                    xn--ngstr-lra8j.com 命中 GEOSITE,geolocation-!cn → 代理
+    //                    **一国内一国外 → Play 拿到国内 CDN 地址却用国外 IP 访问 → 转圈**
+    //
+    // 修法（讨论区 #14/#18 的结论：两者必须「全直连」或「全代理」）：
+    //   Minimal 里 services.googleapis.cn 本来就是直连，所以把下载 CDN 也改成直连，
+    //   走国内 CDN 下载，速度最快且不占节点带宽。
+    //   只加 1 条规则、不新增分组，Standard / Full 完全不动。
+    if (preset === "minimal") {
+      const idx = entries.findIndex((e) => e.value === "geolocation-!cn");
+      entries.splice(idx >= 0 ? idx : entries.length, 0, {
+        key: "special:play-cdn-direct",
+        moduleId: "play-cdn",
+        group: "🔒 国内服务",
+        ruleId: "play-cdn",
+        summary: "Google Play 下载 CDN",
+        kind: "rule",
+        syntax: "DOMAIN-SUFFIX",
+        value: "xn--ngstr-lra8j.com",
+      });
+    }
+
     const groupLines = buildProxyGroups({ modules, enabled, defaults, allNodes: ALL_NODES });
     plans[preset] = {
       enabled,
