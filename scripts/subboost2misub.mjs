@@ -526,6 +526,57 @@ function buildRulePlan({ modules, ruleOrder, enabled, defaults, experimentalCn }
     }
   }
 
+  // ── 本地补正 1：Gemini 归入 AI 组（2026-11-05）─────────────────────────
+  // 缺陷：SubBoost 默认排除 gemini 模块（groups.ts: m.id !== "gemini"），
+  // 导致 Gemini 流量落到 geolocation-!cn → 🌍 非中国，而不是 🤖 AI 服务。
+  // 若 AI 组配了专用节点，Gemini 用不上。这里把它的 geosite/google-gemini
+  // 规则并入 AI 组（不新增分组，避免改变用户可见的组列表）。
+  const aiModule = byId.get("ai");
+  const geminiModule = byId.get("gemini");
+  const geminiKey = "module:gemini:google-gemini";
+  if (aiModule && geminiModule && enabledSet.has("ai") && !emitted.has(geminiKey)) {
+    const geminiRule = geminiModule.rules.find((r) => r.id === "google-gemini");
+    if (geminiRule) {
+      const entry = {
+        key: geminiKey,
+        moduleId: "gemini",
+        group: aiModule.name,
+        ruleId: geminiRule.id,
+        summary: geminiRule.name,
+        ...geoSyntax(geminiRule),
+      };
+      emitted.add(geminiKey);
+      const lastAi = entries.map((e) => e.group).lastIndexOf(aiModule.name);
+      if (lastAi >= 0) entries.splice(lastAi + 1, 0, entry);
+      else entries.push(entry);
+    }
+  }
+
+  // ── 本地补正 2：把 experimental-cn 补充规则前移（2026-11-05）────────────
+  // SubBoost 的 experimentalCnUseCnRuleSet 会追加一条 GEOSITE,cn（11 万条，
+  // 是最大的 CN 域名集合），原本放在倒数第二，标注为「低置信国内补充」。
+  // 问题：
+  //   3. 它排在 91 条规则之后，任何在前序列表里被误收的 CN 域名（例如
+  //      apple/google 列表里的 .cn 域名）都会被抢走，走代理而不是直连；
+  //   4. geolocation-!cn 排在它之前，若两个数据集有重叠，重叠部分被判为非中国。
+  // 做法：把它搬到 GEOIP,CN 之后，与 geolocation-cn / cn-ip 同段。
+  // 代价：cn 是「低置信」列表，前移后少数被误收的域名会走直连。
+  const cnRuleEntries = entries.filter((e) => e.key === "special:experimental-cn");
+  if (cnRuleEntries.length > 0) {
+    const rest = entries.filter((e) => !cnRuleEntries.includes(e));
+    let anchor = rest.findIndex(
+      (e) => e.syntax === "GEOIP" && String(e.value).toUpperCase() === "CN"
+    );
+    if (anchor < 0) {
+      anchor = rest.findIndex((e) => e.syntax === "GEOSITE" && e.value === "geolocation-cn");
+    }
+    if (anchor >= 0) {
+      rest.splice(anchor + 1, 0, ...cnRuleEntries);
+      entries.length = 0;
+      entries.push(...rest);
+    }
+  }
+
   const finalModule = byId.get("final");
   const selectModule = byId.get("select");
   const finalGroup = enabledSet.has("final")
