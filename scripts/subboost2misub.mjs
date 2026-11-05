@@ -552,30 +552,10 @@ function buildRulePlan({ modules, ruleOrder, enabled, defaults, experimentalCn }
     }
   }
 
-  // ── 本地补正 2：把 experimental-cn 补充规则前移（2026-11-05）────────────
-  // SubBoost 的 experimentalCnUseCnRuleSet 会追加一条 GEOSITE,cn（11 万条，
-  // 是最大的 CN 域名集合），原本放在倒数第二，标注为「低置信国内补充」。
-  // 问题：
-  //   3. 它排在 91 条规则之后，任何在前序列表里被误收的 CN 域名（例如
-  //      apple/google 列表里的 .cn 域名）都会被抢走，走代理而不是直连；
-  //   4. geolocation-!cn 排在它之前，若两个数据集有重叠，重叠部分被判为非中国。
-  // 做法：把它搬到 GEOIP,CN 之后，与 geolocation-cn / cn-ip 同段。
-  // 代价：cn 是「低置信」列表，前移后少数被误收的域名会走直连。
-  const cnRuleEntries = entries.filter((e) => e.key === "special:experimental-cn");
-  if (cnRuleEntries.length > 0) {
-    const rest = entries.filter((e) => !cnRuleEntries.includes(e));
-    let anchor = rest.findIndex(
-      (e) => e.syntax === "GEOIP" && String(e.value).toUpperCase() === "CN"
-    );
-    if (anchor < 0) {
-      anchor = rest.findIndex((e) => e.syntax === "GEOSITE" && e.value === "geolocation-cn");
-    }
-    if (anchor >= 0) {
-      rest.splice(anchor + 1, 0, ...cnRuleEntries);
-      entries.length = 0;
-      entries.push(...rest);
-    }
-  }
+  // 注：2026-11-05 曾把 experimental-cn（GEOSITE,cn，11 万条）从第 93 位前移到第 10 位，
+  // 以修复「CN 域名被前序列表误收」与「geolocation-!cn 排在 cn 之前」两个问题。
+  // 但 cn 在 SubBoost 里被标注为「低置信国内补充」，前移后少数被误收的域名会走直连。
+  // 经权衡已回退，保持上游原始顺序（cn 在 geolocation-!cn 之后、MATCH 之前）。
 
   const finalModule = byId.get("final");
   const selectModule = byId.get("select");
