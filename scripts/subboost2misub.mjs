@@ -1086,10 +1086,24 @@ async function main() {
   const plans = {};
   for (const preset of PRESETS) {
     const spec = parsePresetExclusions(src.groups, preset);
-    const enabled =
+    let enabled =
       spec.mode === "include"
         ? modules.filter((m) => spec.ids.includes(m.id)).map((m) => m.id)
         : modules.filter((m) => !spec.ids.includes(m.id)).map((m) => m.id);
+
+    // ── 本地补正 3：精简版补入 google 模块（2026-11-05）──────────────────────
+    // 现象：Full / Standard 正常，只有 Lite 下 Google Play「能打开商店、下载失败」。
+    // 原因：Minimal 只靠 geolocation-!cn 这种聚合列表兜 Google。一旦某个 Play 下载域名
+    //      （gvt1.com / dl.google.com 等）在客户端 geodata 里既不在 !cn、又落在 cn 列表里，
+    //      就会被后面的 cn 规则判成「国内直连」——商店 API 走代理能开，下载走直连必失败。
+    //      Standard / Full 有 GEOSITE,google 排在 cn 之前，所以不受影响。
+    // 做法：让 minimal 也启用 google 模块，Google 统一走精选列表 + 独立分组，
+    //      与 standard / full 的处置一致。规则从 8 条变 9 条、分组从 7 个变 8 个。
+    if (preset === "minimal" && !enabled.includes("google")) {
+      const withGoogle = new Set(enabled);
+      withGoogle.add("google");
+      enabled = modules.filter((m) => withGoogle.has(m.id)).map((m) => m.id);
+    }
     const entries = buildRulePlan({ modules, ruleOrder, enabled, defaults, experimentalCn });
     const groupLines = buildProxyGroups({ modules, enabled, defaults, allNodes: ALL_NODES });
     plans[preset] = {
