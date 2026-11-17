@@ -446,7 +446,20 @@ function parseDefaults(srcText) {
   return {
     testUrl: strField(body, "testUrl") || "https://www.gstatic.com/generate_204",
     testInterval: numField(body, "testInterval") ?? 300,
-    autoSelectStrategy: strField(body, "autoSelectStrategy") || "url-test",
+    // ── 本地补正 5：自动选择组强制 fallback（2026-11-18）──────────────────────
+    // 上游 defaults.ts:9 写死 autoSelectStrategy: "url-test"，strField 会读到它，
+    // 所以改下面 `|| "url-test"` 这个默认值是**无效**的，必须在这里强制覆盖。
+    //
+    // url-test 每 testInterval 秒重测全部节点延迟并择优 → 节点会自己漂移：
+    //   · 出口 IP 不稳定（Play / 网银等按 IP 判区域的场景会失败）
+    //   · 长连接被切换打断（下载 / 视频）
+    //   · DNS 的 DoH 出口（#⚡ 自动选择）与业务流量可能落在不同节点
+    // fallback 只按列表顺序取第一台健康节点，行为确定。
+    //
+    // ⚠️ 代价：不再挑最低延迟 → **节点顺序成为事实上的优先级**。
+    //    订阅组的 manualNodes 必须按 hysteria2 → tuic → reality → cdn 排列，
+    //    否则第一台就会变成主力。见 proxy2/docs/agent/misub/plan-urltest-to-fallback.md
+    autoSelectStrategy: "fallback",
     cnIpNoResolve: boolField(body, "cnIpNoResolve") ?? true,
     experimentalCnUseCnRuleSet: boolField(body, "experimentalCnUseCnRuleSet") ?? false,
   };
