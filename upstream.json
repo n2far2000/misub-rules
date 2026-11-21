@@ -1,0 +1,10 @@
+{
+  "subboostCommit": "bee25ff",
+  "structureFingerprint": "08c0d6b2f2a938bfa3ccdfb56eb47d3160a0615558e675a8aacf3601ef04c17e",
+  "generatedAt": "2026-11-21T01:31:23.263Z",
+  "presets": [
+    "full",
+    "standard",
+    "minimal"
+  ]
+}
