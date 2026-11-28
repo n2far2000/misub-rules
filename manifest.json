@@ -1,0 +1,415 @@
+{
+  "generatedAt": "2026-11-28T02:40:23.903Z",
+  "generator": "subboost2misub.mjs",
+  "upstream": {
+    "subboostCommit": "2832bcf",
+    "structureFingerprint": "08c0d6b2f2a938bfa3ccdfb56eb47d3160a0615558e675a8aacf3601ef04c17e",
+    "generatedAt": "2026-11-28T02:40:23.903Z",
+    "presets": [
+      "full",
+      "standard",
+      "minimal"
+    ]
+  },
+  "ruleBaseUrl": "https://cdn.jsdelivr.net/gh/n2far2000/misub-rules@dist",
+  "presets": {
+    "full": {
+      "label": "完整版",
+      "groups": 33,
+      "rules": 94,
+      "runs": 32
+    },
+    "standard": {
+      "label": "标准版",
+      "groups": 14,
+      "rules": 24,
+      "runs": 12
+    },
+    "minimal": {
+      "label": "精简版",
+      "groups": 7,
+      "rules": 9,
+      "runs": 5
+    }
+  },
+  "ruleSets": {
+    "runs": 32,
+    "formats": [
+      "clash",
+      "singbox"
+    ],
+    "sourceListCount": 93
+  },
+  "files": [
+    {
+      "path": "misub-remote/SubBoost_Full_MiSub_clash.ini",
+      "bytes": 9038,
+      "sha256": "022578b1521ed1ded23def29161a7e5dd06600713c2caa85cc8977603780fc6f"
+    },
+    {
+      "path": "misub-remote/SubBoost_Full_MiSub_singbox.ini",
+      "bytes": 9030,
+      "sha256": "ab98cdc06eedf8987cff4aa05b649b3949b339fa011e106f7c656eb2c3da42fa"
+    },
+    {
+      "path": "misub-remote/SubBoost_Minimal_MiSub_clash.ini",
+      "bytes": 2659,
+      "sha256": "7d8f34fb7dd36a20ab11bdd328ac3265c7676bc0aceede505b53ea2c09305f11"
+    },
+    {
+      "path": "misub-remote/SubBoost_Minimal_MiSub_singbox.ini",
+      "bytes": 2597,
+      "sha256": "98da72dfaca0c22380d609944199aae293cb0fb0cf07262c4f3745a4de2c2d61"
+    },
+    {
+      "path": "misub-remote/SubBoost_Standard_MiSub_clash.ini",
+      "bytes": 4337,
+      "sha256": "5faa7bb320495dc524bddc9eec5121f2abbda8a4e5b506942f683e2732d9ac5a"
+    },
+    {
+      "path": "misub-remote/SubBoost_Standard_MiSub_singbox.ini",
+      "bytes": 4289,
+      "sha256": "540f11f05a30c33e0788906ba0ea131c665bc43ffb37b89c73e73cd7815dedaf"
+    },
+    {
+      "path": "misub/SubBoost_Full_MiSub.ini",
+      "bytes": 9800,
+      "sha256": "0bdca9f2f39638025d74ffc85db6ccae2e02fb94d68d69ef6383cc36a4690edb"
+    },
+    {
+      "path": "misub/SubBoost_Minimal_MiSub.ini",
+      "bytes": 2609,
+      "sha256": "9789cc8599684ac516da4414b183b2e1f54afcddb3d4d9d2bdc3b5213cb9a75f"
+    },
+    {
+      "path": "misub/SubBoost_Standard_MiSub.ini",
+      "bytes": 4200,
+      "sha256": "eb96bcf71e1b49ab53a6d2585ead6d5abc60075026444c63634bf1accc9e35e1"
+    },
+    {
+      "path": "rules/clash/sb-ad.yaml",
+      "bytes": 34204,
+      "sha256": "50f68afc8e8a7c9bf6a58052859a01f2efa60cd25aaea1e9540244f87f063e93"
+    },
+    {
+      "path": "rules/clash/sb-ai.yaml",
+      "bytes": 8287,
+      "sha256": "dbec3f3a635094d7f6dbfdae2bd8fbd0f0134b83a6917d215e9a8b46ecfe7dfc"
+    },
+    {
+      "path": "rules/clash/sb-apple.yaml",
+      "bytes": 64976,
+      "sha256": "0e6168accbd36289a926bb455dfec40c9060045f6ce078d707a9e6d1048e7474"
+    },
+    {
+      "path": "rules/clash/sb-cloud.yaml",
+      "bytes": 40021,
+      "sha256": "12eb7cfb65ebe52037976064fecabb8dd6935cb8e4bc134585b31a3b10f2ce0d"
+    },
+    {
+      "path": "rules/clash/sb-cn-2.yaml",
+      "bytes": 3596787,
+      "sha256": "123d97e90fe9a41c40e8c7750db9b2836b0904c02861d89b9fa26fc24128fd6a"
+    },
+    {
+      "path": "rules/clash/sb-cn.yaml",
+      "bytes": 471574,
+      "sha256": "22d8f5f5510941c1bb6e23fc8f7427a87f54a8150b87893bd7ca3ca85374c283"
+    },
+    {
+      "path": "rules/clash/sb-crypto.yaml",
+      "bytes": 1557,
+      "sha256": "eb7a4dce26f4d46523f564a2afe4476d331b0901840d0d992b23b8b2967be45e"
+    },
+    {
+      "path": "rules/clash/sb-dev-tools.yaml",
+      "bytes": 2147,
+      "sha256": "67aeec9099920d60e132095ccdbc3fe48ea70b053c14af5ce1112f699bbd7cea"
+    },
+    {
+      "path": "rules/clash/sb-discord.yaml",
+      "bytes": 1060,
+      "sha256": "9f9c1ce152788a31e7d4cbef04911fecdeed1dcc766257508a60b7a2d33a8998"
+    },
+    {
+      "path": "rules/clash/sb-disney.yaml",
+      "bytes": 8176,
+      "sha256": "2decf239103a19831844d7396f33f1be0780b5b636841ef2cba698c19c8b9357"
+    },
+    {
+      "path": "rules/clash/sb-education.yaml",
+      "bytes": 17594,
+      "sha256": "4ef545d89da59642b4f96483db50f638f5987f9a59c02a3c8bfc95eec636068f"
+    },
+    {
+      "path": "rules/clash/sb-gaming-console.yaml",
+      "bytes": 6294,
+      "sha256": "242ccbdfadeaea590d981cc3c9bbc170e727b2d5c42e68def2f2673cdb23a07a"
+    },
+    {
+      "path": "rules/clash/sb-gaming-pc.yaml",
+      "bytes": 11879,
+      "sha256": "141b00d3bea3bb96fcc8936d53e31d36fcb2d0ef487993dfab4178aeb25e68d9"
+    },
+    {
+      "path": "rules/clash/sb-github.yaml",
+      "bytes": 3815,
+      "sha256": "c2287e7096dd494549621ee989032b936da17526f4a368870507f6a3b8b664a6"
+    },
+    {
+      "path": "rules/clash/sb-global.yaml",
+      "bytes": 949145,
+      "sha256": "77187f2f70afec5afa9a6ce7535a0c45e5cfe7f681d33ad07c4fa86c90390b32"
+    },
+    {
+      "path": "rules/clash/sb-google.yaml",
+      "bytes": 279845,
+      "sha256": "a7ec2f21c45aff15ba9d4ec7991162883da20337bd15d010dbfd2ebd9c1dbd8f"
+    },
+    {
+      "path": "rules/clash/sb-meta.yaml",
+      "bytes": 21304,
+      "sha256": "2be7ffda81f97dc7a00de9a44a56ba5023abd0c976dced81d146b685d3c09098"
+    },
+    {
+      "path": "rules/clash/sb-microsoft.yaml",
+      "bytes": 29941,
+      "sha256": "a91efe3f3a382af1f4669ad5f4a7d9889130cca91a6ae2db9d18269dfe032b70"
+    },
+    {
+      "path": "rules/clash/sb-netflix.yaml",
+      "bytes": 4935,
+      "sha256": "4c33bcbe3f5142846ce15ea91b152e71bb643ef7484f400ca762b6b22fc7d27e"
+    },
+    {
+      "path": "rules/clash/sb-news.yaml",
+      "bytes": 4499,
+      "sha256": "395a1333952cf85d3d63657085048000b1f195efde388473da2a4580de53a7d5"
+    },
+    {
+      "path": "rules/clash/sb-payment.yaml",
+      "bytes": 9419,
+      "sha256": "a4ca00d2c1744f1b9568f7752f5bbae37f1153a14cf0e68c2fd7f36044634c33"
+    },
+    {
+      "path": "rules/clash/sb-private.yaml",
+      "bytes": 5914,
+      "sha256": "712976b4dfa16aaa2e035b258d27e6ae1efae08d29a3121de84675b1d837a191"
+    },
+    {
+      "path": "rules/clash/sb-shopping.yaml",
+      "bytes": 21519,
+      "sha256": "0e51f190865ad3433a87fbd726bf0c4b3bf9e19cde459383d288587fb32570fe"
+    },
+    {
+      "path": "rules/clash/sb-social-other.yaml",
+      "bytes": 5246,
+      "sha256": "6e6fd973c7dae58cc39e05ee0ffa2ff1d3822d3074d4ca584650f03a0eeda1a4"
+    },
+    {
+      "path": "rules/clash/sb-steam.yaml",
+      "bytes": 2532,
+      "sha256": "ee0e01acbb16f1d74d61916448c9c6e68374812541b96853dcb6e69ab270821e"
+    },
+    {
+      "path": "rules/clash/sb-storage.yaml",
+      "bytes": 1173,
+      "sha256": "d8d2d101b4c2457f0ffd2a961d9b3fb330303befac384b408f8e0fc4820f4e02"
+    },
+    {
+      "path": "rules/clash/sb-streaming-asia.yaml",
+      "bytes": 2129,
+      "sha256": "ef44b61abfd5d2a7888d6ad930d7e7855c5913fe99fa907b8fe8fbeea5bd95d5"
+    },
+    {
+      "path": "rules/clash/sb-streaming-west-2.yaml",
+      "bytes": 7772,
+      "sha256": "a5876deb60102f79a48478cffea1d5a78a9ed6d5cf4e92bb97057c4a709f4163"
+    },
+    {
+      "path": "rules/clash/sb-streaming-west.yaml",
+      "bytes": 353,
+      "sha256": "4193b37020121cd19471dbb9d047b398bdb32fb268f3462d8bf43770aa856c58"
+    },
+    {
+      "path": "rules/clash/sb-telegram.yaml",
+      "bytes": 1046,
+      "sha256": "f6f56cdebb89d1034e5e1893fe6789d2d4403f708378a25b1b368dae4f360f16"
+    },
+    {
+      "path": "rules/clash/sb-twitter.yaml",
+      "bytes": 1417,
+      "sha256": "f51a570afb77fbd6366fbe047b18ae4ab7364bf6ec3a0b5ddfde1cfd12b77927"
+    },
+    {
+      "path": "rules/clash/sb-youtube.yaml",
+      "bytes": 5959,
+      "sha256": "4c7068a89866ca37bec8cedff452e2ae9b8f14a781babe81ee1534141b0ea6c9"
+    },
+    {
+      "path": "rules/singbox/sb-ad.json",
+      "bytes": 17877,
+      "sha256": "1723b0c349c52f11831d93de410965c8ee2d6457a05dd98c8c90727f6e7c9827"
+    },
+    {
+      "path": "rules/singbox/sb-ai.json",
+      "bytes": 4380,
+      "sha256": "ee22998f0fa3b00bbd44b114dd4f2851bcc33f13b9d370a8df74af4020d0d8e0"
+    },
+    {
+      "path": "rules/singbox/sb-apple.json",
+      "bytes": 35041,
+      "sha256": "36353889de5cda4a5d2c1ee6aa5eb25bea1ab3ffdd9cd1fa5e1e88072c83d2b0"
+    },
+    {
+      "path": "rules/singbox/sb-cloud.json",
+      "bytes": 22699,
+      "sha256": "8f305734b7f40c2c3d5e2ba17e6b55698820908d8850b71c5c89549fe68c0e19"
+    },
+    {
+      "path": "rules/singbox/sb-cn-2.json",
+      "bytes": 1613636,
+      "sha256": "543ad53af6588c7686b9dc1be19dfb4060daac3f1b0f2fb9c1d0370826628734"
+    },
+    {
+      "path": "rules/singbox/sb-cn.json",
+      "bytes": 253066,
+      "sha256": "8135835ba3862dff959436345dc395fd3cb162312ac0b7fa87cbe152adf75f83"
+    },
+    {
+      "path": "rules/singbox/sb-crypto.json",
+      "bytes": 782,
+      "sha256": "731760a67453b02197f6a00d9f9bf4d9f24bd51705914438af7c8fa9ad912230"
+    },
+    {
+      "path": "rules/singbox/sb-dev-tools.json",
+      "bytes": 1138,
+      "sha256": "2e12bb77a71afe59e57a6b143ed085a014c1c8d81da5087c249e79bd27a10e9d"
+    },
+    {
+      "path": "rules/singbox/sb-discord.json",
+      "bytes": 591,
+      "sha256": "f2ddb5039198671d30fe40021c8ea72a03fa1e5d314f793b52ad6b2a97848535"
+    },
+    {
+      "path": "rules/singbox/sb-disney.json",
+      "bytes": 4179,
+      "sha256": "335089011ece94ad1b1128fd02174c1d0bdd7ab4db1a72346931a7563eef136e"
+    },
+    {
+      "path": "rules/singbox/sb-education.json",
+      "bytes": 8737,
+      "sha256": "f0ca24b53b05ebeea0e6d22b1e30d8e17d0f52490fbc7bba3dec026eabb3686d"
+    },
+    {
+      "path": "rules/singbox/sb-gaming-console.json",
+      "bytes": 3251,
+      "sha256": "c2eec08416029efa6cf97fbe513cd33521ecbd50178eb20de8c52ec9a4d19878"
+    },
+    {
+      "path": "rules/singbox/sb-gaming-pc.json",
+      "bytes": 6280,
+      "sha256": "c4e13fd6f5cd2fb61b19c05e68428a9c1c2f113a01f5a14291c04b904c32e862"
+    },
+    {
+      "path": "rules/singbox/sb-github.json",
+      "bytes": 2374,
+      "sha256": "3c34a1c16750dcdfb08129ec6896b7694c300862fa86b0808155a144f50bbc01"
+    },
+    {
+      "path": "rules/singbox/sb-global.json",
+      "bytes": 458806,
+      "sha256": "9b8c2a13c7f6f7f96851c03044dad0a265204bd5563795d5113f3a8b61d4fd40"
+    },
+    {
+      "path": "rules/singbox/sb-google.json",
+      "bytes": 174068,
+      "sha256": "16424b1da4a55ac262df4a5cb4e2322a5d136d85893de83248f215d5acdea9c5"
+    },
+    {
+      "path": "rules/singbox/sb-meta.json",
+      "bytes": 11171,
+      "sha256": "de7e3d89f9d914809b539cef8fb1d998733829e1c9c9e84873528176ea596a27"
+    },
+    {
+      "path": "rules/singbox/sb-microsoft.json",
+      "bytes": 16224,
+      "sha256": "8514053ec86bef483d2673534b02de9b0a6305c602176b6ee06ddbbec5cdbff2"
+    },
+    {
+      "path": "rules/singbox/sb-netflix.json",
+      "bytes": 3002,
+      "sha256": "4451889ddc09b1a1e4b08253c5b50713a5d91f777577c624a95b87085d9966f0"
+    },
+    {
+      "path": "rules/singbox/sb-news.json",
+      "bytes": 2374,
+      "sha256": "c059f19f8381c61384242a7ef8eff698183e1abcf80269a45e9d766ced39b214"
+    },
+    {
+      "path": "rules/singbox/sb-payment.json",
+      "bytes": 4864,
+      "sha256": "10507db0656412563b8b52c07f5189026a276ec9dc609ba03412828c5279f306"
+    },
+    {
+      "path": "rules/singbox/sb-private.json",
+      "bytes": 3239,
+      "sha256": "d6ec03d499147de0d937e6581bf0ab51669ef28bc69b1a84d7c1f8635e9c752e"
+    },
+    {
+      "path": "rules/singbox/sb-shopping.json",
+      "bytes": 10574,
+      "sha256": "9f696a043e0f3f7e86303111244f6d198d14fd5a342b8e8aabf2f7186c819ffc"
+    },
+    {
+      "path": "rules/singbox/sb-social-other.json",
+      "bytes": 2653,
+      "sha256": "10233f1e8511b9ccd32445726774f8da78b6c5668394d3011b146f11db8ea821"
+    },
+    {
+      "path": "rules/singbox/sb-steam.json",
+      "bytes": 1469,
+      "sha256": "8b410656d2d7eb309e236fc3517911a8a1500c09e02cf3af69efb1bbb04e8f2c"
+    },
+    {
+      "path": "rules/singbox/sb-storage.json",
+      "bytes": 632,
+      "sha256": "0734b9a5851e110e43d48e60a5b20b604c442741674c6e6147c3d1137aaac278"
+    },
+    {
+      "path": "rules/singbox/sb-streaming-asia.json",
+      "bytes": 1156,
+      "sha256": "3de952f10acdf57ed756c254b34e3480b99c0e679c0f69c9c4dad5f20585a385"
+    },
+    {
+      "path": "rules/singbox/sb-streaming-west-2.json",
+      "bytes": 4063,
+      "sha256": "411399bb770f5c9dcae5fe227166b1bf3a3adae8f1d6dc155495d9ef211fbf01"
+    },
+    {
+      "path": "rules/singbox/sb-streaming-west.json",
+      "bytes": 244,
+      "sha256": "bd879a0d55b53463fa36842194c654dc7cfe168204875953b62f40a967b2ba0e"
+    },
+    {
+      "path": "rules/singbox/sb-telegram.json",
+      "bytes": 569,
+      "sha256": "eed782280cb0482dd7f26b7c48c7f65095960fc080a1491da27974b7eb9d30cb"
+    },
+    {
+      "path": "rules/singbox/sb-twitter.json",
+      "bytes": 791,
+      "sha256": "45b4318c98a2d9f791e1c1c0455215f9bcf687b542263b2ebe4d3ae6154d4d58"
+    },
+    {
+      "path": "rules/singbox/sb-youtube.json",
+      "bytes": 2790,
+      "sha256": "0d857da9fae6c131a071c693052e3dd870128c9cddcfede63080c4aebbe9fe45"
+    },
+    {
+      "path": "upstream.json",
+      "bytes": 235,
+      "sha256": "1d32497244821513246dbfec8c5eb9c748d2f7884da4a0e13c220b6e54414c2e"
+    }
+  ]
+}
